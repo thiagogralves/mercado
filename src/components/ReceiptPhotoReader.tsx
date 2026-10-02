@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { ImagePlus, Loader2, Plus, Sparkles, X } from "lucide-react";
+import { useRef, useState, type ChangeEvent } from "react";
+import { Camera, ImagePlus, Loader2, Plus, Sparkles, X } from "lucide-react";
 import { readReceiptWithAi } from "@/actions";
 import type { NfceParseResult } from "@/lib/nfce";
 
@@ -59,7 +59,8 @@ async function fileToCompressedBase64(file: File): Promise<{
 }
 
 export function ReceiptPhotoReader({ onResult, appendMode = true }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
   const [shots, setShots] = useState<Shot[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -107,19 +108,28 @@ export function ReceiptPhotoReader({ onResult, appendMode = true }: Props) {
     }
   }
 
+  function onPick(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) void handleFile(file);
+    e.target.value = "";
+  }
+
   return (
     <div className="space-y-4">
       <input
-        ref={inputRef}
+        ref={cameraRef}
         type="file"
         accept="image/*"
         capture="environment"
         className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) void handleFile(file);
-          e.target.value = "";
-        }}
+        onChange={onPick}
+      />
+      <input
+        ref={galleryRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={onPick}
       />
 
       <div className="flex flex-wrap gap-2">
@@ -127,20 +137,29 @@ export function ReceiptPhotoReader({ onResult, appendMode = true }: Props) {
           type="button"
           className="btn btn-primary"
           disabled={busy}
-          onClick={() => inputRef.current?.click()}
+          onClick={() => cameraRef.current?.click()}
         >
           {busy ? (
             <Loader2 size={18} className="animate-spin" />
           ) : shots.length > 0 ? (
             <Plus size={18} />
           ) : (
-            <ImagePlus size={18} />
+            <Camera size={18} />
           )}
           {busy
             ? "Lendo com Gemini…"
             : shots.length > 0
-              ? "Adicionar outra foto"
-              : "Tirar foto / escolher imagem"}
+              ? "Outra foto"
+              : "Tirar foto"}
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={busy}
+          onClick={() => galleryRef.current?.click()}
+        >
+          <ImagePlus size={18} />
+          {shots.length > 0 ? "Anexar outra" : "Anexar imagem"}
         </button>
       </div>
 
@@ -177,8 +196,9 @@ export function ReceiptPhotoReader({ onResult, appendMode = true }: Props) {
         <div className="panel grid place-items-center p-8 text-center">
           <Sparkles className="mb-2 text-brand" size={28} />
           <p className="text-sm text-muted">
-            Nota grande? Tire várias fotos (topo, meio, fim). Todas entram na
-            mesma compra. A IA usa o <strong>valor pago</strong> (última coluna).
+            Tire foto ou anexe da galeria. Nota grande? use várias imagens
+            (topo, meio, fim). A IA usa o <strong>valor pago</strong> (última
+            coluna).
           </p>
         </div>
       )}
