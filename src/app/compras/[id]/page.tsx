@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { AddToQuotaButton } from "@/components/AddToQuotaButton";
 import { formatDateBr, formatWeekLabel } from "@/lib/dates";
 import { formatBRL, formatQty } from "@/lib/money";
 import { ensureSchema, getPurchaseDetail } from "@/lib/queries";
@@ -42,8 +43,9 @@ export default async function CompraDetalhePage({
               <tr>
                 <th>Alimento</th>
                 <th>Qtd</th>
-                <th>Preço unit.</th>
-                <th>Total</th>
+                <th>Unit.</th>
+                <th>Pago</th>
+                <th>Cota</th>
               </tr>
             </thead>
             <tbody>
@@ -58,6 +60,15 @@ export default async function CompraDetalhePage({
                   <td>{formatQty(item.quantity, item.unit)}</td>
                   <td>{formatBRL(item.unitPrice)}</td>
                   <td className="font-semibold">{formatBRL(item.totalPrice)}</td>
+                  <td>
+                    <AddToQuotaButton
+                      productId={item.productId}
+                      productName={item.productName}
+                      unit={item.unit}
+                      yearMonth={purchase.yearMonth}
+                      suggestedQty={item.quantity}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>

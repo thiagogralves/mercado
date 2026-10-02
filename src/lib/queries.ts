@@ -2,6 +2,7 @@ import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   monthlyQuotas,
+  productAliases,
   products,
   purchaseItems,
   purchases,
@@ -72,6 +73,18 @@ export async function ensureSchema() {
       raw_name TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
+  `);
+  await db.run(sql`
+    CREATE TABLE IF NOT EXISTS product_aliases (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      alias TEXT NOT NULL,
+      product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  await db.run(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS product_aliases_alias_idx
+    ON product_aliases(alias)
   `);
 }
 
@@ -174,11 +187,159 @@ export async function listPurchases(yearMonth?: string) {
     .where(yearMonth ? eq(purchases.yearMonth, yearMonth) : undefined)
     .orderBy(desc(purchases.purchasedAt), desc(purchases.id));
 
+  const purchaseIds = rows.map((r) => r.id);
+  const itemRows =
+    purchaseIds.length === 0
+      ? []
+      : await db
+          .select({
+            id: purchaseItems.id,
+            purchaseId: purchaseItems.purchaseId,
+            quantity: purchaseItems.quantity,
+            unitPrice: purchaseItems.unitPrice,
+            totalPrice: purchaseItems.totalPrice,
+            rawName: purchaseItems.rawName,
+            productId: products.id,
+            productName: products.name,
+            unit: products.unit,
+          })
+          .from(purchaseItems)
+          .innerJoin(products, eq(purchaseItems.productId, products.id))
+          .orderBy(asc(products.name));
+
+  const itemsByPurchase = new Map<number, typeof itemRows>();
+  for (const item of itemRows) {
+    if (!purchaseIds.includes(item.purchaseId)) continue;
+    const list = itemsByPurchase.get(item.purchaseId) ?? [];
+    list.push(item);
+    itemsByPurchase.set(item.purchaseId, list);
+  }
+
   return rows.map((r) => ({
     ...r,
     itemCount: Number(r.itemCount),
     itemsTotal: Number(r.itemsTotal),
+    items: itemsByPurchase.get(r.id) ?? [],
   }));
+}
+
+export function normalizeAlias(raw: string) {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+export async function upsertProductAlias(aliasRaw: string, productId: number) {
+  const alias = normalizeAlias(aliasRaw);
+  if (!alias || alias.length < 2) return;
+
+  const [existing] = await db
+    .select()
+    .from(productAliases)
+    .where(eq(productAliases.alias, alias))
+    .limit(1);
+
+  if (existing) {
+    if (existing.productId !== productId) {
+      await db
+        .update(productAliases)
+        .set({ productId })
+        .where(eq(productAliases.id, existing.id));
+    }
+    return;
+  }
+
+  await db.insert(productAliases).values({ alias, productId });
+}
+
+export async function resolveProductByAlias(aliasRaw: string) {
+  const alias = normalizeAlias(aliasRaw);
+  if (!alias) return null;
+  const [row] = await db
+    .select({
+      productId: productAliases.productId,
+      productName: products.name,
+      unit: products.unit,
+    })
+    .from(productAliases)
+    .innerJoin(products, eq(productAliases.productId, products.id))
+    .where(eq(productAliases.alias, alias))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function listProductAliases() {
+  return db
+    .select({
+      alias: productAliases.alias,
+      productId: productAliases.productId,
+      productName: products.name,
+    })
+    .from(productAliases)
+    .innerJoin(products, eq(productAliases.productId, products.id));
+}
+
+export type ProductHistoryRow = {
+  productId: number;
+  productName: string;
+  unit: string;
+  entries: Array<{
+    storeName: string;
+    purchasedAt: string;
+    unitPrice: number;
+    totalPrice: number;
+    quantity: number;
+  }>;
+};
+
+/** Histórico do mesmo produto em mercados/datas diferentes no mês */
+export async function getProductPriceHistory(
+  yearMonth: string,
+): Promise<ProductHistoryRow[]> {
+  const rows = await db
+    .select({
+      productId: products.id,
+      productName: products.name,
+      unit: products.unit,
+      storeName: stores.name,
+      purchasedAt: purchases.purchasedAt,
+      unitPrice: purchaseItems.unitPrice,
+      totalPrice: purchaseItems.totalPrice,
+      quantity: purchaseItems.quantity,
+    })
+    .from(purchaseItems)
+    .innerJoin(purchases, eq(purchaseItems.purchaseId, purchases.id))
+    .innerJoin(products, eq(purchaseItems.productId, products.id))
+    .innerJoin(stores, eq(purchases.storeId, stores.id))
+    .where(eq(purchases.yearMonth, yearMonth))
+    .orderBy(asc(products.name), desc(purchases.purchasedAt));
+
+  const map = new Map<number, ProductHistoryRow>();
+  for (const row of rows) {
+    const entry = map.get(row.productId) ?? {
+      productId: row.productId,
+      productName: row.productName,
+      unit: row.unit,
+      entries: [],
+    };
+    entry.entries.push({
+      storeName: row.storeName,
+      purchasedAt: row.purchasedAt,
+      unitPrice: row.unitPrice,
+      totalPrice: row.totalPrice,
+      quantity: row.quantity,
+    });
+    map.set(row.productId, entry);
+  }
+
+  return [...map.values()].filter((p) => {
+    const stores = new Set(p.entries.map((e) => e.storeName));
+    const dates = new Set(p.entries.map((e) => e.purchasedAt));
+    return stores.size > 1 || dates.size > 1;
+  });
 }
 
 export async function getPurchaseDetail(id: number) {

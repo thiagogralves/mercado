@@ -9,16 +9,26 @@ type GeminiReceiptJson = {
     name?: string;
     quantity?: number;
     unit?: string;
+    /** Preço unitário de referência (ex.: R$/kg) — NÃO usar como valor pago */
     unitPrice?: number;
+    /** Valor efetivamente pago pelo item (última coluna do cupom) */
     totalPrice?: number;
   }>;
 };
 
 const PROMPT = `Você é um extrator de cupons fiscais / notas de supermercado brasileiros.
-Analise a imagem da nota (pode ser cupom térmico, DANFE, NFC-e impressa ou foto de celular).
-Extraia TODOS os produtos com quantidade, unidade e preços.
+Analise a imagem da nota (cupom térmico, DANFE, NFC-e impressa ou foto).
 
-Responda APENAS um JSON válido (sem markdown) neste formato:
+IMPORTANTE SOBRE PREÇOS EM CUPONS BRASILEIROS:
+- Em itens pesados (kg), costuma haver UMA coluna com o preço do QUILO (referência) e a ÚLTIMA coluna com o VALOR PAGO do item.
+- O campo totalPrice DEVE ser sempre o VALOR PAGO (última coluna / valor do item na nota).
+- NÃO use o preço do quilo como totalPrice.
+- unitPrice deve ser o preço unitário efetivo: totalPrice ÷ quantity.
+- Se houver só uma coluna de preço, use-a como totalPrice.
+
+Extraia TODOS os produtos visíveis nesta foto.
+
+Responda APENAS um JSON válido neste formato:
 {
   "storeName": "nome do mercado",
   "storeCnpj": "opcional",
@@ -36,12 +46,11 @@ Responda APENAS um JSON válido (sem markdown) neste formato:
 }
 
 Regras:
-- Use ponto como decimal nos números (ex: 12.90).
-- Se só houver preço total do item, calcule unitPrice = totalPrice / quantity.
-- Ignore taxas, pagamento, troco, CPF e mensagens legais.
-- Normalize nomes (ex: "ARZ TIO JOAO 5KG" → "Arroz Tio João 5kg") sem inventar produtos.
-- Se a imagem estiver ruim, ainda assim tente extrair o que for legível.
-- unit deve ser uma de: un, kg, g, L, ml.`;
+- Use ponto como decimal (ex: 12.90).
+- Ignore taxas, pagamento, troco, CPF e textos legais.
+- Normalize nomes sem inventar produtos.
+- unit deve ser uma de: un, kg, g, L, ml.
+- Se a foto for só uma parte da nota, extraia só o que estiver legível nela.`;
 
 function extractJson(text: string): GeminiReceiptJson {
   const cleaned = text
@@ -74,7 +83,6 @@ function toNumber(value: unknown): number {
   if (typeof value === "string") {
     const trimmed = value.trim();
     if (!trimmed) return 0;
-    // Formato BR: 1.234,56
     if (/^\d{1,3}(\.\d{3})*,\d+$/.test(trimmed)) {
       return Number(trimmed.replace(/\./g, "").replace(",", "."));
     }
@@ -95,9 +103,7 @@ export async function parseReceiptWithGemini(input: {
     );
   }
 
-  const model =
-    process.env.GEMINI_MODEL?.trim() || "gemini-3.1-flash-lite";
-
+  const model = process.env.GEMINI_MODEL?.trim() || "gemini-3.1-flash-lite";
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
   const res = await fetch(url, {
@@ -171,18 +177,36 @@ export async function parseReceiptWithGemini(input: {
   const items: NfceItem[] = (parsed.items ?? [])
     .map((raw) => {
       const quantity = Math.max(toNumber(raw.quantity) || 1, 0.001);
-      let unitPrice = toNumber(raw.unitPrice);
+      const reportedUnit = toNumber(raw.unitPrice);
       let totalPrice = toNumber(raw.totalPrice);
-      if (!totalPrice && unitPrice) totalPrice = unitPrice * quantity;
-      if (!unitPrice && totalPrice) unitPrice = totalPrice / quantity;
+
+      // Se a IA trocou as colunas (preço/kg no total), corrige:
+      // quando total ≈ unit * qty, ok; se total parece preço/kg e unit maior, inverte.
+      if (!totalPrice && reportedUnit) {
+        totalPrice = reportedUnit * quantity;
+      } else if (
+        totalPrice &&
+        reportedUnit &&
+        quantity > 0 &&
+        // totalPrice parece preço unitário e reportedUnit parece total pago
+        Math.abs(reportedUnit - totalPrice * quantity) < 0.05 &&
+        reportedUnit > totalPrice
+      ) {
+        totalPrice = reportedUnit;
+      }
+
+      // Sempre prioriza valor pago e deriva unitário efetivo
+      if (!totalPrice && reportedUnit) totalPrice = reportedUnit * quantity;
+      const unitPrice = totalPrice / quantity;
       const name = String(raw.name ?? "").trim();
-      if (!name || (!unitPrice && !totalPrice)) return null;
+      if (!name || !totalPrice) return null;
+
       return {
         name,
         quantity,
         unit: normalizeUnit(raw.unit),
         unitPrice: Number(unitPrice.toFixed(4)),
-        totalPrice: Number((totalPrice || unitPrice * quantity).toFixed(2)),
+        totalPrice: Number(totalPrice.toFixed(2)),
       } satisfies NfceItem;
     })
     .filter((item): item is NfceItem => Boolean(item));

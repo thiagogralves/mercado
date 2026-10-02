@@ -97,6 +97,25 @@ export const purchaseItems = sqliteTable(
   ],
 );
 
+/** Associa nome bruto da nota fiscal a um alimento cadastrado */
+export const productAliases = sqliteTable(
+  "product_aliases",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    alias: text("alias").notNull(),
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (table) => [
+    uniqueIndex("product_aliases_alias_idx").on(table.alias),
+    index("product_aliases_product_idx").on(table.productId),
+  ],
+);
+
 export const productsRelations = relations(products, ({ many }) => ({
   quotas: many(monthlyQuotas),
   items: many(purchaseItems),
@@ -137,3 +156,4 @@ export type Store = typeof stores.$inferSelect;
 export type MonthlyQuota = typeof monthlyQuotas.$inferSelect;
 export type Purchase = typeof purchases.$inferSelect;
 export type PurchaseItem = typeof purchaseItems.$inferSelect;
+export type ProductAlias = typeof productAliases.$inferSelect;

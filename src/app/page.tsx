@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Camera, Plus, Sparkles } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { MonthSwitcher } from "@/components/MonthSwitcher";
+import { ProductComparisons } from "@/components/ProductComparisons";
 import { QuotaCards } from "@/components/QuotaCards";
 import { WeeklyChangesTable } from "@/components/WeeklyChangesTable";
 import { formatBRL } from "@/lib/money";
@@ -9,6 +10,7 @@ import { formatMonthLabel, toYearMonth } from "@/lib/dates";
 import {
   ensureSchema,
   getMonthlySpend,
+  getProductPriceHistory,
   getQuotaProgress,
   getWeeklyPriceChanges,
   getWeeklySpend,
@@ -28,12 +30,14 @@ export default async function HomePage({
   const params = await searchParams;
   const yearMonth = params.mes ?? toYearMonth();
 
-  const [quotas, spend, weeklySpend, weeklyChanges] = await Promise.all([
-    getQuotaProgress(yearMonth),
-    getMonthlySpend(yearMonth),
-    getWeeklySpend(yearMonth),
-    getWeeklyPriceChanges(yearMonth),
-  ]);
+  const [quotas, spend, weeklySpend, weeklyChanges, productHistory] =
+    await Promise.all([
+      getQuotaProgress(yearMonth),
+      getMonthlySpend(yearMonth),
+      getWeeklySpend(yearMonth),
+      getWeeklyPriceChanges(yearMonth),
+      getProductPriceHistory(yearMonth),
+    ]);
 
   const remainingItems = quotas.filter((q) => q.remainingQuantity > 0).length;
   const completeItems = quotas.filter((q) => q.remainingQuantity <= 0).length;
@@ -41,7 +45,7 @@ export default async function HomePage({
   return (
     <AppShell
       title="Painel do mês"
-      subtitle={`Visão de ${formatMonthLabel(yearMonth)} — cotas, gastos e pulso de preços.`}
+      subtitle={`Visão de ${formatMonthLabel(yearMonth)} — cotas, gastos e comparativos.`}
       action={<MonthSwitcher yearMonth={yearMonth} basePath="/" />}
     >
       <div className="space-y-6">
@@ -56,8 +60,8 @@ export default async function HomePage({
                 <span className="block text-brand"> Acompanhe com clareza.</span>
               </h2>
               <p className="mt-3 text-sm text-muted md:text-base">
-                Escaneie a nota no caixa, preencha a cota do mês e veja onde o
-                preço subiu — tudo no celular, instalável como app.
+                Escaneie a nota no caixa, preencha a cota do mês e compare preços
+                entre mercados e datas.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -131,6 +135,26 @@ export default async function HomePage({
             </Link>
           </div>
           <QuotaCards items={quotas} />
+        </section>
+
+        <section className="space-y-3">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <h2 className="font-[family-name:var(--font-display)] text-xl tracking-tight">
+                Comparativo de produtos
+              </h2>
+              <p className="text-sm text-muted">
+                Mesmo alimento em mercados diferentes ou datas diferentes
+              </p>
+            </div>
+            <Link
+              href="/comparativos"
+              className="text-sm font-semibold text-brand"
+            >
+              Ver mais
+            </Link>
+          </div>
+          <ProductComparisons rows={productHistory} />
         </section>
 
         <section className="grid gap-4 lg:grid-cols-2">

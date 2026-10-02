@@ -11,8 +11,10 @@ import {
   ensureSchema,
   findOrCreateProductByName,
   findOrCreateStoreByName,
+  upsertProductAlias,
 } from "@/lib/queries";
 import { parseDecimal } from "@/lib/money";
+import { toDateInput, toYearMonth } from "@/lib/dates";
 
 async function ready() {
   await ensureSchema();
@@ -147,25 +149,28 @@ export type PurchaseItemInput = {
   productId: number;
   quantity: number;
   unitPrice: number;
+  totalPrice?: number;
   rawName?: string;
 };
 
 export async function createPurchase(input: {
   storeId: number;
-  purchasedAt: string;
+  purchasedAt?: string;
   notes?: string;
   nfceUrl?: string;
   nfceKey?: string;
   items: PurchaseItemInput[];
 }) {
   await ready();
-  if (!input.storeId || !input.purchasedAt || input.items.length === 0) {
-    throw new Error("Mercado, data e ao menos um item são obrigatórios.");
+  const purchasedAt = input.purchasedAt?.trim() || toDateInput();
+  if (!input.storeId || input.items.length === 0) {
+    throw new Error("Mercado e ao menos um item são obrigatórios.");
   }
 
-  const meta = buildPurchaseMeta(input.purchasedAt);
+  const meta = buildPurchaseMeta(purchasedAt);
   const totalAmount = input.items.reduce(
-    (sum, item) => sum + item.quantity * item.unitPrice,
+    (sum, item) =>
+      sum + (item.totalPrice ?? item.quantity * item.unitPrice),
     0,
   );
 
@@ -182,14 +187,19 @@ export async function createPurchase(input: {
     .returning();
 
   await db.insert(purchaseItems).values(
-    input.items.map((item) => ({
-      purchaseId: purchase.id,
-      productId: item.productId,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      totalPrice: item.quantity * item.unitPrice,
-      rawName: item.rawName ?? null,
-    })),
+    input.items.map((item) => {
+      const totalPrice = item.totalPrice ?? item.quantity * item.unitPrice;
+      const unitPrice =
+        item.quantity > 0 ? totalPrice / item.quantity : item.unitPrice;
+      return {
+        purchaseId: purchase.id,
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice,
+        totalPrice,
+        rawName: item.rawName ?? null,
+      };
+    }),
   );
 
   revalidateAll();
@@ -274,7 +284,7 @@ export async function readReceiptWithAi(input: {
 export async function importMappedPurchase(input: {
   storeId?: number;
   storeName?: string;
-  purchasedAt: string;
+  purchasedAt?: string;
   notes?: string;
   nfceUrl?: string;
   nfceKey?: string;
@@ -285,6 +295,7 @@ export async function importMappedPurchase(input: {
     unit?: string;
     quantity: number;
     unitPrice: number;
+    totalPrice?: number;
     include: boolean;
   }>;
 }) {
@@ -310,10 +321,19 @@ export async function importMappedPurchase(input: {
       productId = product.id;
     }
     if (!productId) continue;
+
+    // Associa o nome lido na NF ao alimento escolhido para futuros matches
+    if (map.rawName) {
+      await upsertProductAlias(map.rawName, productId);
+    }
+
+    const totalPrice =
+      map.totalPrice ?? map.quantity * map.unitPrice;
     items.push({
       productId,
       quantity: map.quantity,
-      unitPrice: map.unitPrice,
+      unitPrice: map.quantity > 0 ? totalPrice / map.quantity : map.unitPrice,
+      totalPrice,
       rawName: map.rawName,
     });
   }
@@ -324,12 +344,51 @@ export async function importMappedPurchase(input: {
 
   return createPurchase({
     storeId,
-    purchasedAt: input.purchasedAt,
+    purchasedAt: input.purchasedAt || toDateInput(),
     notes: input.notes,
     nfceUrl: input.nfceUrl,
     nfceKey: input.nfceKey,
     items,
   });
+}
+
+export async function addProductToMonthlyQuota(input: {
+  productId: number;
+  targetQuantity: number;
+  yearMonth?: string;
+}) {
+  await ready();
+  const yearMonth = input.yearMonth || toYearMonth();
+  const targetQuantity = Number(input.targetQuantity);
+  if (!input.productId || !(targetQuantity > 0)) {
+    throw new Error("Informe o alimento e a quantidade da cota mensal.");
+  }
+
+  const [existing] = await db
+    .select()
+    .from(monthlyQuotas)
+    .where(
+      and(
+        eq(monthlyQuotas.productId, input.productId),
+        eq(monthlyQuotas.yearMonth, yearMonth),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    await db
+      .update(monthlyQuotas)
+      .set({ targetQuantity })
+      .where(eq(monthlyQuotas.id, existing.id));
+  } else {
+    await db.insert(monthlyQuotas).values({
+      productId: input.productId,
+      yearMonth,
+      targetQuantity,
+    });
+  }
+
+  revalidateAll();
 }
 
 export async function importNfce(input: {

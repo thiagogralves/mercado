@@ -1,12 +1,21 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ImagePlus, Loader2, Sparkles } from "lucide-react";
+import { ImagePlus, Loader2, Plus, Sparkles, X } from "lucide-react";
 import { readReceiptWithAi } from "@/actions";
 import type { NfceParseResult } from "@/lib/nfce";
 
 type Props = {
   onResult: (result: NfceParseResult) => void;
+  /** Quando true, cada foto adiciona itens sem substituir a leitura anterior */
+  appendMode?: boolean;
+};
+
+type Shot = {
+  id: string;
+  preview: string;
+  status: "ok" | "error" | "loading";
+  label: string;
 };
 
 async function fileToCompressedBase64(file: File): Promise<{
@@ -49,9 +58,9 @@ async function fileToCompressedBase64(file: File): Promise<{
   };
 }
 
-export function ReceiptPhotoReader({ onResult }: Props) {
+export function ReceiptPhotoReader({ onResult, appendMode = true }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const [shots, setShots] = useState<Shot[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -59,25 +68,40 @@ export function ReceiptPhotoReader({ onResult }: Props) {
   async function handleFile(file: File) {
     setError(null);
     setBusy(true);
-    setStatus("Preparando foto…");
-
-    const url = URL.createObjectURL(file);
-    setPreview(url);
+    const id = String(Date.now());
+    const preview = URL.createObjectURL(file);
+    setShots((prev) => [
+      ...(appendMode ? prev : []),
+      { id, preview, status: "loading", label: "Lendo…" },
+    ]);
+    setStatus("Gemini está lendo a foto…");
 
     try {
-      setStatus("Compactando imagem…");
       const { base64, mimeType } = await fileToCompressedBase64(file);
-
-      setStatus("Gemini está lendo produtos e preços…");
       const parsed = await readReceiptWithAi({ base64, mimeType });
-
       onResult(parsed);
-      setStatus(`${parsed.items.length} item(ns) lidos com IA`);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Falha ao ler a nota com IA.",
+      setShots((prev) =>
+        prev.map((s) =>
+          s.id === id
+            ? {
+                ...s,
+                status: "ok",
+                label: `${parsed.items.length} itens`,
+              }
+            : s,
+        ),
       );
+      setStatus(`${parsed.items.length} item(ns) lidos nesta foto`);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Falha ao ler a nota com IA.";
+      setError(message);
       setStatus(null);
+      setShots((prev) =>
+        prev.map((s) =>
+          s.id === id ? { ...s, status: "error", label: "Falhou" } : s,
+        ),
+      );
     } finally {
       setBusy(false);
     }
@@ -98,35 +122,63 @@ export function ReceiptPhotoReader({ onResult }: Props) {
         }}
       />
 
-      <button
-        type="button"
-        className="btn btn-primary w-full"
-        disabled={busy}
-        onClick={() => inputRef.current?.click()}
-      >
-        {busy ? (
-          <Loader2 size={18} className="animate-spin" />
-        ) : (
-          <ImagePlus size={18} />
-        )}
-        {busy ? "Lendo com Gemini…" : "Tirar foto / escolher imagem"}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={busy}
+          onClick={() => inputRef.current?.click()}
+        >
+          {busy ? (
+            <Loader2 size={18} className="animate-spin" />
+          ) : shots.length > 0 ? (
+            <Plus size={18} />
+          ) : (
+            <ImagePlus size={18} />
+          )}
+          {busy
+            ? "Lendo com Gemini…"
+            : shots.length > 0
+              ? "Adicionar outra foto"
+              : "Tirar foto / escolher imagem"}
+        </button>
+      </div>
 
-      {preview ? (
-        <div className="overflow-hidden rounded-2xl border border-line">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={preview}
-            alt="Prévia da nota"
-            className="max-h-72 w-full object-cover"
-          />
+      {shots.length > 0 ? (
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+          {shots.map((shot) => (
+            <div
+              key={shot.id}
+              className="relative overflow-hidden rounded-xl border border-line"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={shot.preview}
+                alt="Foto da nota"
+                className="h-28 w-full object-cover"
+              />
+              <div className="absolute inset-x-0 bottom-0 bg-black/65 px-2 py-1 text-xs font-semibold">
+                {shot.label}
+              </div>
+              <button
+                type="button"
+                className="absolute right-1 top-1 rounded-full bg-black/60 p-1"
+                aria-label="Remover foto"
+                onClick={() =>
+                  setShots((prev) => prev.filter((s) => s.id !== shot.id))
+                }
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
         </div>
       ) : (
         <div className="panel grid place-items-center p-8 text-center">
           <Sparkles className="mb-2 text-brand" size={28} />
           <p className="text-sm text-muted">
-            Fotografe o cupom inteiro. A IA Gemini identifica mercado, produtos,
-            quantidades e preços — mesmo sem QR Code.
+            Nota grande? Tire várias fotos (topo, meio, fim). Todas entram na
+            mesma compra. A IA usa o <strong>valor pago</strong> (última coluna).
           </p>
         </div>
       )}

@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
-import { DeleteButton } from "@/components/DeleteButton";
 import { MonthSwitcher } from "@/components/MonthSwitcher";
-import { createBatchPurchase, deletePurchase } from "@/actions";
-import { formatDateBr, formatMonthLabel, toDateInput, toYearMonth } from "@/lib/dates";
-import { formatBRL } from "@/lib/money";
+import { PurchaseList } from "@/components/PurchaseList";
+import { createBatchPurchase } from "@/actions";
+import { formatMonthLabel, toDateInput, toYearMonth } from "@/lib/dates";
 import { ensureSchema, listPurchases, listStores } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +26,7 @@ export default async function ComprasPage({
   return (
     <AppShell
       title="Compras"
-      subtitle={`Registros de ${formatMonthLabel(yearMonth)}. Cadastre item a item ou em lote.`}
+      subtitle={`Registros de ${formatMonthLabel(yearMonth)} com data e itens.`}
       action={
         <div className="flex flex-wrap items-center gap-2">
           <MonthSwitcher yearMonth={yearMonth} basePath="/compras" />
@@ -41,61 +40,14 @@ export default async function ComprasPage({
       }
     >
       <div className="space-y-6">
-        <div className="panel table-wrap p-2 md:p-4">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Mercado</th>
-                <th>Semana</th>
-                <th>Itens</th>
-                <th>Total</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="text-muted">
-                    Nenhuma compra neste mês.
-                  </td>
-                </tr>
-              ) : (
-                rows.map((row) => (
-                  <tr key={row.id}>
-                    <td>
-                      <Link
-                        href={`/compras/${row.id}`}
-                        className="font-semibold text-brand"
-                      >
-                        {formatDateBr(row.purchasedAt)}
-                      </Link>
-                    </td>
-                    <td>{row.storeName}</td>
-                    <td className="text-sm text-muted">{row.isoWeek}</td>
-                    <td>{row.itemCount}</td>
-                    <td className="font-semibold">
-                      {formatBRL(row.itemsTotal || row.totalAmount || 0)}
-                    </td>
-                    <td>
-                      <DeleteButton
-                        action={deletePurchase.bind(null, row.id)}
-                      />
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <PurchaseList rows={rows} />
 
         <section className="panel space-y-3 p-4 md:p-6">
           <h2 className="font-[family-name:var(--font-display)] text-xl">
             Importação em lote (texto)
           </h2>
           <p className="text-sm text-muted">
-            Uma linha por item no formato:{" "}
-            <code>nome | quantidade | preço unitário</code>
+            Uma linha por item: <code>nome | quantidade | preço unitário</code>
           </p>
           <form action={createBatchPurchase} className="grid gap-3 md:grid-cols-3">
             <div className="field">
