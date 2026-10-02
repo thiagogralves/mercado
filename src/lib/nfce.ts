@@ -1,5 +1,9 @@
 export type NfceItem = {
   name: string;
+  /** Nome expandido/sugerido pela IA */
+  suggestedName?: string;
+  /** Nome exato do catálogo sugerido pela IA */
+  matchedCatalogName?: string;
   quantity: number;
   unit: string;
   unitPrice: number;

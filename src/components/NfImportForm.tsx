@@ -119,10 +119,27 @@ export function NfImportForm({
       setPhotoCount((c) => c + 1);
 
       const newRows: MappingRow[] = result.items.map((item, idx) => {
-        const suggested = suggestProduct(item.name, products, aliases);
+        const byCatalog = item.matchedCatalogName
+          ? products.find(
+              (p) =>
+                p.name.toLowerCase() ===
+                item.matchedCatalogName!.toLowerCase(),
+            )
+          : null;
+        const suggested =
+          byCatalog ||
+          suggestProduct(
+            item.suggestedName || item.name,
+            products,
+            aliases,
+          ) ||
+          suggestProduct(item.name, products, aliases);
+
         const totalPrice = item.totalPrice || item.quantity * item.unitPrice;
         const unitPrice =
           item.quantity > 0 ? totalPrice / item.quantity : item.unitPrice;
+        const niceName = item.suggestedName || item.name;
+
         return {
           key: `${Date.now()}-${idx}-${item.name}`,
           rawName: item.name,
@@ -133,7 +150,7 @@ export function NfImportForm({
           include: true,
           mode: suggested ? "existing" : "create",
           productId: suggested ? String(suggested.id) : "",
-          createName: item.name,
+          createName: niceName,
         };
       });
       setRows((prev) => [...prev, ...newRows]);
@@ -398,10 +415,17 @@ export function NfImportForm({
                       />
                     </td>
                     <td className="max-w-[220px]">
-                      <div className="font-medium">{row.rawName}</div>
-                      <div className="text-xs text-muted">
-                        {row.unit} · unit. efetivo {formatBRL(row.unitPrice)}
-                      </div>
+                      <div className="font-medium">{row.createName}</div>
+                      {row.rawName !== row.createName ? (
+                        <div className="text-xs text-muted">NF: {row.rawName}</div>
+                      ) : (
+                        <div className="text-xs text-muted">{row.unit}</div>
+                      )}
+                      {row.mode === "existing" && row.productId ? (
+                        <div className="text-xs text-accent">casado com catálogo</div>
+                      ) : (
+                        <div className="text-xs text-brand">nome sugerido pela IA</div>
+                      )}
                     </td>
                     <td>
                       <input

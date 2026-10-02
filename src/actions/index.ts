@@ -5,12 +5,13 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { monthlyQuotas, products, purchaseItems, purchases, stores } from "@/db/schema";
 import { normalizeUnit, parseNfceUrl } from "@/lib/nfce";
-import { parseReceiptWithGemini } from "@/lib/gemini-receipt";
+import { parseReceiptWithGemini, suggestFoodNameWithGemini } from "@/lib/gemini-receipt";
 import {
   buildPurchaseMeta,
   ensureSchema,
   findOrCreateProductByName,
   findOrCreateStoreByName,
+  listProducts,
   upsertProductAlias,
 } from "@/lib/queries";
 import { parseDecimal } from "@/lib/money";
@@ -271,13 +272,24 @@ export async function readReceiptWithAi(input: {
   if (!input.base64 || input.base64.length < 100) {
     throw new Error("Imagem inválida.");
   }
-  // Limite razoável (~6MB base64) para serverless
   if (input.base64.length > 8_000_000) {
     throw new Error("Imagem muito grande. Tire uma foto mais leve ou aproxime o cupom.");
   }
+
+  const catalog = await listProducts();
   return parseReceiptWithGemini({
     base64: input.base64,
     mimeType: input.mimeType || "image/jpeg",
+    catalogNames: catalog.map((p) => p.name),
+  });
+}
+
+export async function suggestFoodName(rawName: string) {
+  await ready();
+  const catalog = await listProducts();
+  return suggestFoodNameWithGemini({
+    rawName,
+    catalogNames: catalog.map((p) => p.name),
   });
 }
 
@@ -325,6 +337,9 @@ export async function importMappedPurchase(input: {
     // Associa o nome lido na NF ao alimento escolhido para futuros matches
     if (map.rawName) {
       await upsertProductAlias(map.rawName, productId);
+    }
+    if (map.createName && map.createName !== map.rawName) {
+      await upsertProductAlias(map.createName, productId);
     }
 
     const totalPrice =
