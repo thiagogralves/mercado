@@ -1,20 +1,37 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Sparkles } from "lucide-react";
 import { suggestFoodName } from "@/actions";
 import { CategoryField } from "@/components/CategoryField";
 
-type Props = {
-  products: Array<{ id: number; name: string; category?: string }>;
+export type ProductFormItem = {
+  id: number;
+  name: string;
+  unit: string;
+  category: string;
+  barcode: string | null;
 };
 
-export function ProductFormWithAi({ products }: Props) {
+type Props = {
+  products: ProductFormItem[];
+  editing?: ProductFormItem | null;
+  onCancelEdit?: () => void;
+};
+
+export function ProductFormWithAi({
+  products,
+  editing = null,
+  onCancelEdit,
+}: Props) {
   const [name, setName] = useState("");
   const [unit, setUnit] = useState("un");
   const [category, setCategory] = useState("Geral");
+  const [barcode, setBarcode] = useState("");
   const [hint, setHint] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const isEditing = Boolean(editing);
+
   const categories = useMemo(
     () =>
       [
@@ -27,13 +44,34 @@ export function ProductFormWithAi({ products }: Props) {
     [products],
   );
 
+  useEffect(() => {
+    if (editing) {
+      setName(editing.name);
+      setUnit(editing.unit);
+      setCategory(editing.category || "Geral");
+      setBarcode(editing.barcode ?? "");
+      setHint(null);
+      return;
+    }
+    setName("");
+    setUnit("un");
+    setCategory("Geral");
+    setBarcode("");
+    setHint(null);
+  }, [editing]);
+
   function askAi() {
     if (!name.trim()) return;
     setHint(null);
     startTransition(async () => {
       try {
         const result = await suggestFoodName(name.trim());
-        if (result.matchedCatalogName) {
+        if (
+          result.matchedCatalogName &&
+          (!editing ||
+            result.matchedCatalogName.toLowerCase() !==
+              editing.name.toLowerCase())
+        ) {
           setHint(
             `Já existe no catálogo: “${result.matchedCatalogName}”. Prefira usar esse alimento nas compras em vez de criar outro.`,
           );
@@ -54,9 +92,20 @@ export function ProductFormWithAi({ products }: Props) {
     });
   }
 
+  const nameTaken = products.some(
+    (p) =>
+      p.name.toLowerCase() === name.trim().toLowerCase() &&
+      p.id !== editing?.id,
+  );
+
   return (
     <div className="panel h-fit space-y-3 p-4">
-      <h2 className="font-semibold">Novo alimento</h2>
+      <h2 className="font-semibold">
+        {isEditing ? "Editar alimento" : "Novo alimento"}
+      </h2>
+      {isEditing ? (
+        <input type="hidden" name="id" value={editing!.id} />
+      ) : null}
       <div className="field">
         <label htmlFor="name">Nome (pode ser abreviado)</label>
         <input
@@ -78,9 +127,7 @@ export function ProductFormWithAi({ products }: Props) {
         {pending ? "Consultando Gemini…" : "Sugerir nome com IA"}
       </button>
       {hint ? <p className="text-xs text-muted">{hint}</p> : null}
-      {products.some(
-        (p) => p.name.toLowerCase() === name.trim().toLowerCase(),
-      ) ? (
+      {nameTaken ? (
         <p className="text-xs text-accent">
           Esse nome já está no catálogo — pode não precisar cadastrar de novo.
         </p>
@@ -107,11 +154,25 @@ export function ProductFormWithAi({ products }: Props) {
       />
       <div className="field">
         <label htmlFor="barcode">Código de barras (opcional)</label>
-        <input id="barcode" name="barcode" />
+        <input
+          id="barcode"
+          name="barcode"
+          value={barcode}
+          onChange={(e) => setBarcode(e.target.value)}
+        />
       </div>
       <button type="submit" className="btn btn-primary w-full">
-        Salvar alimento
+        {isEditing ? "Salvar alterações" : "Salvar alimento"}
       </button>
+      {isEditing && onCancelEdit ? (
+        <button
+          type="button"
+          className="btn btn-secondary w-full"
+          onClick={onCancelEdit}
+        >
+          Cancelar edição
+        </button>
+      ) : null}
     </div>
   );
 }

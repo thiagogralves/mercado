@@ -44,6 +44,46 @@ export async function createProduct(formData: FormData) {
   revalidateAll();
 }
 
+export async function updateProduct(formData: FormData) {
+  await ready();
+  const id = Number(formData.get("id"));
+  const name = String(formData.get("name") ?? "").trim();
+  const unit = String(formData.get("unit") ?? "un") as "un" | "kg" | "g" | "L" | "ml";
+  const category = String(formData.get("category") ?? "Geral").trim() || "Geral";
+  const barcode = String(formData.get("barcode") ?? "").trim() || null;
+
+  if (!id || !name) throw new Error("Informe o alimento e o nome.");
+
+  const [duplicate] = await db
+    .select({ id: products.id })
+    .from(products)
+    .where(eq(products.name, name))
+    .limit(1);
+  if (duplicate && duplicate.id !== id) {
+    throw new Error("Já existe um alimento com esse nome.");
+  }
+
+  await db
+    .update(products)
+    .set({ name, unit, category, barcode })
+    .where(eq(products.id, id));
+  revalidateAll();
+}
+
+export async function renameCategory(formData: FormData) {
+  await ready();
+  const from = String(formData.get("from") ?? "").trim();
+  const to = String(formData.get("to") ?? "").trim();
+  if (!from || !to) throw new Error("Informe a categoria atual e o novo nome.");
+  if (from === to) return;
+
+  await db
+    .update(products)
+    .set({ category: to })
+    .where(eq(products.category, from));
+  revalidateAll();
+}
+
 export async function deleteProduct(id: number) {
   await ready();
   await db.delete(products).where(eq(products.id, id));
