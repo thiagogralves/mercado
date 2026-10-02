@@ -1,69 +1,178 @@
-import Image from "next/image";
+import Link from "next/link";
+import { Camera, Plus, Sparkles } from "lucide-react";
+import { AppShell } from "@/components/AppShell";
+import { MonthSwitcher } from "@/components/MonthSwitcher";
+import { QuotaCards } from "@/components/QuotaCards";
+import { WeeklyChangesTable } from "@/components/WeeklyChangesTable";
+import { formatBRL } from "@/lib/money";
+import { formatMonthLabel, toYearMonth } from "@/lib/dates";
+import {
+  ensureSchema,
+  getMonthlySpend,
+  getQuotaProgress,
+  getWeeklyPriceChanges,
+  getWeeklySpend,
+} from "@/lib/queries";
+import { seedDemoData } from "@/actions";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+type SearchParams = Promise<{ mes?: string }>;
+
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  await ensureSchema();
+  const params = await searchParams;
+  const yearMonth = params.mes ?? toYearMonth();
+
+  const [quotas, spend, weeklySpend, weeklyChanges] = await Promise.all([
+    getQuotaProgress(yearMonth),
+    getMonthlySpend(yearMonth),
+    getWeeklySpend(yearMonth),
+    getWeeklyPriceChanges(yearMonth),
+  ]);
+
+  const remainingItems = quotas.filter((q) => q.remainingQuantity > 0).length;
+  const completeItems = quotas.filter((q) => q.remainingQuantity <= 0).length;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <AppShell
+      title="Painel do mês"
+      subtitle={`Visão de ${formatMonthLabel(yearMonth)} — cotas, gastos e pulso de preços.`}
+      action={<MonthSwitcher yearMonth={yearMonth} basePath="/" />}
+    >
+      <div className="space-y-6">
+        <section className="panel panel-glow relative overflow-hidden p-5 md:p-7">
+          <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="max-w-xl">
+              <p className="mb-2 inline-flex items-center gap-2 rounded-full border border-line bg-white/5 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-accent">
+                <Sparkles size={14} /> Seu mercado, em tempo real
+              </p>
+              <h2 className="font-[family-name:var(--font-display)] text-3xl leading-none tracking-tight md:text-4xl">
+                Compre com intenção.
+                <span className="block text-brand"> Acompanhe com clareza.</span>
+              </h2>
+              <p className="mt-3 text-sm text-muted md:text-base">
+                Escaneie a nota no caixa, preencha a cota do mês e veja onde o
+                preço subiu — tudo no celular, instalável como app.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/nota-fiscal" className="btn btn-primary">
+                <Camera size={16} /> Escanear nota
+              </Link>
+              <Link href="/compras/nova" className="btn btn-secondary">
+                <Plus size={16} /> Nova compra
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        <section className="stagger grid gap-3 md:grid-cols-4">
+          <article className="panel stat-card">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted">
+              Gasto no mês
+            </p>
+            <p className="value">{formatBRL(spend.total)}</p>
+          </article>
+          <article className="panel stat-card">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted">
+              Idas ao mercado
+            </p>
+            <p className="value">{spend.trips}</p>
+          </article>
+          <article className="panel stat-card">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted">
+              Cotas em aberto
+            </p>
+            <p className="value text-brand">{remainingItems}</p>
+          </article>
+          <article className="panel stat-card">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted">
+              Cotas completas
+            </p>
+            <p className="value text-accent">{completeItems}</p>
+          </article>
+        </section>
+
+        {quotas.length === 0 && spend.trips === 0 ? (
+          <section className="panel space-y-3 p-5">
+            <h2 className="font-[family-name:var(--font-display)] text-xl">
+              Comece em 1 minuto
+            </h2>
+            <p className="text-sm text-muted">
+              Cadastre alimentos e cotas, registre compras semanais e acompanhe
+              o que ainda falta. Ou importe o catálogo completo (alimentos +
+              mercados do RJ).
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <form action={seedDemoData}>
+                <button type="submit" className="btn btn-primary">
+                  Cadastrar catálogo RJ
+                </button>
+              </form>
+              <Link href="/cotas" className="btn btn-secondary">
+                Criar cotas
+              </Link>
+            </div>
+          </section>
+        ) : null}
+
+        <section className="space-y-3">
+          <div className="flex items-end justify-between gap-3">
+            <h2 className="font-[family-name:var(--font-display)] text-xl tracking-tight">
+              Progresso das cotas
+            </h2>
+            <Link href="/cotas" className="text-sm font-semibold text-brand">
+              Gerenciar
+            </Link>
+          </div>
+          <QuotaCards items={quotas} />
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-2">
+          <div className="panel p-4">
+            <h2 className="mb-3 font-[family-name:var(--font-display)] text-xl tracking-tight">
+              Gastos por semana
+            </h2>
+            {weeklySpend.length === 0 ? (
+              <p className="text-sm text-muted">Nenhuma compra neste mês.</p>
+            ) : (
+              <ul className="space-y-2">
+                {weeklySpend.map((w) => (
+                  <li
+                    key={w.isoWeek}
+                    className="flex items-center justify-between rounded-xl border border-line bg-white/[0.03] px-3 py-2"
+                  >
+                    <span className="text-sm font-semibold">{w.isoWeek}</span>
+                    <span className="font-semibold text-brand">
+                      {formatBRL(w.total)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <h2 className="font-[family-name:var(--font-display)] text-xl tracking-tight">
+              Alta / baixa na semana
+            </h2>
+            <WeeklyChangesTable rows={weeklyChanges.slice(0, 6)} />
+            {weeklyChanges.length > 6 ? (
+              <Link
+                href="/comparativos"
+                className="text-sm font-semibold text-brand"
+              >
+                Ver todos os comparativos
+              </Link>
+            ) : null}
+          </div>
+        </section>
+      </div>
+    </AppShell>
   );
 }
