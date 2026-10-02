@@ -2,10 +2,10 @@ import { AppShell } from "@/components/AppShell";
 import { DeleteButton } from "@/components/DeleteButton";
 import { MonthSwitcher } from "@/components/MonthSwitcher";
 import { QuotaCards } from "@/components/QuotaCards";
+import { QuotaForm } from "@/components/QuotaForm";
 import {
   copyQuotasFromPreviousMonth,
   deleteQuota,
-  upsertQuota,
 } from "@/actions";
 import { formatMonthLabel, toYearMonth } from "@/lib/dates";
 import { formatQty } from "@/lib/money";
@@ -69,40 +69,7 @@ export default async function CotasPage({
       <div className="space-y-6">
         <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
           <div className="space-y-3">
-            <form action={upsertQuota} className="panel h-fit space-y-3 p-4">
-              <h2 className="font-semibold">Definir / atualizar cota</h2>
-              <input type="hidden" name="yearMonth" value={yearMonth} />
-              <div className="field">
-                <label htmlFor="productId">Alimento</label>
-                <select id="productId" name="productId" required defaultValue="">
-                  <option value="" disabled>
-                    Selecione
-                  </option>
-                  {productList.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.unit})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="field">
-                <label htmlFor="targetQuantity">Quantidade mensal</label>
-                <input
-                  id="targetQuantity"
-                  name="targetQuantity"
-                  required
-                  inputMode="decimal"
-                  placeholder="Ex.: 2 ou 3,5"
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="notes">Notas</label>
-                <input id="notes" name="notes" placeholder="Opcional" />
-              </div>
-              <button type="submit" className="btn btn-primary w-full">
-                Salvar cota
-              </button>
-            </form>
+            <QuotaForm products={productList} yearMonth={yearMonth} />
             <form action={copyAction} className="panel p-4">
               <button type="submit" className="btn btn-secondary w-full">
                 Copiar cotas de {fromMonth}
