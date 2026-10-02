@@ -1,8 +1,8 @@
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { eq, sql } from "drizzle-orm";
-import * as schema from "../src/db/schema.ts";
-import { CATALOG_PRODUCTS, RIO_STORES } from "../src/lib/catalog-seed.ts";
+import * as schema from "../src/db/schema";
+import { CATALOG_PRODUCTS, RIO_STORES } from "../src/lib/catalog-seed";
 
 const client = createClient({
   url: process.env.TURSO_DATABASE_URL ?? "file:local.db",

@@ -355,8 +355,4 @@ export async function seedDemoData() {
   }
 
   revalidateAll();
-  return {
-    products: CATALOG_PRODUCTS.length,
-    stores: RIO_STORES.length,
-  };
 }
