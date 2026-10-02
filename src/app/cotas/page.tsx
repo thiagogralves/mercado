@@ -44,6 +44,7 @@ export default async function CotasPage({
     db
       .select({
         id: monthlyQuotas.id,
+        productId: monthlyQuotas.productId,
         targetQuantity: monthlyQuotas.targetQuantity,
         notes: monthlyQuotas.notes,
         productName: products.name,
@@ -69,7 +70,11 @@ export default async function CotasPage({
       <div className="space-y-6">
         <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
           <div className="space-y-3">
-            <QuotaForm products={productList} yearMonth={yearMonth} />
+            <QuotaForm
+              products={productList}
+              yearMonth={yearMonth}
+              excludeProductIds={quotaRows.map((r) => r.productId)}
+            />
             <form action={copyAction} className="panel p-4">
               <button type="submit" className="btn btn-secondary w-full">
                 Copiar cotas de {fromMonth}

@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { Check, ChevronsUpDown, Search } from "lucide-react";
 
 export type ComboboxProduct = {
@@ -56,14 +63,15 @@ export function ProductCombobox({
 
   useEffect(() => {
     setQuery(selected?.name ?? "");
+    if (!value) setOpen(false);
   }, [selected?.name, value]);
 
   useEffect(() => {
-    function onDocClick(e: MouseEvent) {
+    function onDocPointer(e: Event) {
       if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
     }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
+    document.addEventListener("pointerdown", onDocPointer);
+    return () => document.removeEventListener("pointerdown", onDocPointer);
   }, []);
 
   const results = useMemo(() => {
@@ -82,9 +90,13 @@ export function ProductCombobox({
     onChange(String(product.id));
     setQuery(product.name);
     setOpen(false);
+    // tira o foco para a lista não reabrir no mesmo toque (mobile)
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
   }
 
-  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+  function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (!open && (e.key === "ArrowDown" || e.key === "Enter")) {
       setOpen(true);
       return;
@@ -151,7 +163,7 @@ export function ProductCombobox({
         <ul
           id={listId}
           role="listbox"
-          className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-line bg-[#121a2b] py-1 shadow-xl"
+          className="absolute left-0 right-0 z-50 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-line bg-[#121a2b] py-1 shadow-xl"
         >
           {results.length === 0 ? (
             <li className="px-3 py-2 text-sm text-muted">
