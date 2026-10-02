@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { monthlyQuotas, products, purchaseItems, purchases, stores } from "@/db/schema";
 import { normalizeUnit, parseNfceUrl } from "@/lib/nfce";
+import { parseReceiptWithGemini } from "@/lib/gemini-receipt";
 import {
   buildPurchaseMeta,
   ensureSchema,
@@ -250,6 +251,24 @@ export async function deletePurchase(id: number) {
 export async function previewNfce(url: string) {
   await ready();
   return parseNfceUrl(url);
+}
+
+export async function readReceiptWithAi(input: {
+  base64: string;
+  mimeType: string;
+}) {
+  await ready();
+  if (!input.base64 || input.base64.length < 100) {
+    throw new Error("Imagem inválida.");
+  }
+  // Limite razoável (~6MB base64) para serverless
+  if (input.base64.length > 8_000_000) {
+    throw new Error("Imagem muito grande. Tire uma foto mais leve ou aproxime o cupom.");
+  }
+  return parseReceiptWithGemini({
+    base64: input.base64,
+    mimeType: input.mimeType || "image/jpeg",
+  });
 }
 
 export async function importMappedPurchase(input: {

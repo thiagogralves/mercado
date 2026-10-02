@@ -15,7 +15,7 @@ export type NfceParseResult = {
   items: NfceItem[];
   totalAmount?: number;
   nfceKey?: string;
-  source: "nfparse" | "html" | "manual" | "ocr";
+  source: "nfparse" | "html" | "manual" | "ocr" | "gemini";
 };
 
 function parseBrNumber(value: string | undefined | null): number {

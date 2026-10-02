@@ -59,7 +59,7 @@ export function NfImportForm({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [tab, setTab] = useState<Tab>("qr");
+  const [tab, setTab] = useState<Tab>("photo");
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<NfceParseResult | null>(null);
@@ -153,8 +153,8 @@ export function NfImportForm({
           storeName: preview.storeName,
           purchasedAt,
           notes:
-            preview.source === "ocr"
-              ? "Importado por foto da nota (OCR)"
+            preview.source === "gemini" || preview.source === "ocr"
+              ? "Importado por foto da nota (IA Gemini)"
               : `Importado da NFC-e${preview.nfceKey ? ` (${preview.nfceKey})` : ""}`,
           nfceUrl: scannedUrl ?? (url.trim() || undefined),
           nfceKey: preview.nfceKey,
@@ -187,11 +187,21 @@ export function NfImportForm({
             Captura inteligente
           </h2>
           <p className="mt-1 text-sm text-muted">
-            Escaneie o QR, fotografe o cupom ou cole a URL da SEFAZ.
+            Tire foto do cupom — a IA Gemini lê produtos e preços mesmo sem QR
+            Code. Também dá para escanear QR ou colar a URL da SEFAZ.
           </p>
         </div>
 
         <div className="tab-bar">
+          <button
+            type="button"
+            className={tab === "photo" ? "active" : undefined}
+            onClick={() => setTab("photo")}
+          >
+            <span className="inline-flex items-center justify-center gap-1.5">
+              <ImagePlus size={15} /> Foto + IA
+            </span>
+          </button>
           <button
             type="button"
             className={tab === "qr" ? "active" : undefined}
@@ -199,15 +209,6 @@ export function NfImportForm({
           >
             <span className="inline-flex items-center justify-center gap-1.5">
               <Camera size={15} /> QR Code
-            </span>
-          </button>
-          <button
-            type="button"
-            className={tab === "photo" ? "active" : undefined}
-            onClick={() => setTab("photo")}
-          >
-            <span className="inline-flex items-center justify-center gap-1.5">
-              <ImagePlus size={15} /> Foto
             </span>
           </button>
           <button

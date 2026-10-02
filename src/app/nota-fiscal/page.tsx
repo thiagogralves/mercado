@@ -12,7 +12,7 @@ export default async function NotaFiscalPage() {
   return (
     <AppShell
       title="Escanear nota"
-      subtitle="Use a câmera para ler o QR Code ou fotografar o cupom e importar os itens."
+      subtitle="Fotografe o cupom e a IA Gemini extrai produtos e preços — QR Code é opcional."
     >
       <NfImportForm
         products={products}
