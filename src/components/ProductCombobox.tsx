@@ -119,12 +119,12 @@ export function ProductCombobox({
   }
 
   return (
-    <div className="field relative" ref={rootRef}>
+    <div className="field" ref={rootRef}>
       {label ? <label>{label}</label> : null}
       {name ? (
         <input type="hidden" name={name} value={value} required={required} />
       ) : null}
-      <div className="relative">
+      <div className="relative z-10">
         <Search
           size={16}
           className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
@@ -146,12 +146,12 @@ export function ProductCombobox({
           aria-expanded={open}
           aria-controls={listId}
           aria-autocomplete="list"
-          className="w-full rounded-[0.9rem] border border-line bg-[rgba(7,11,20,0.65)] py-2.5 pl-9 pr-10 text-ink outline-none transition focus:border-[rgba(200,245,66,0.55)] focus:shadow-[0_0_0_3px_rgba(200,245,66,0.12)]"
+          className="relative z-10 w-full rounded-[0.9rem] border border-line bg-[rgba(7,11,20,0.65)] py-2.5 pl-9 pr-10 text-ink outline-none transition focus:border-[rgba(200,245,66,0.55)] focus:shadow-[0_0_0_3px_rgba(200,245,66,0.12)]"
           required={required && !value}
         />
         <button
           type="button"
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted hover:text-ink"
+          className="absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-md p-1 text-muted hover:text-ink"
           onClick={() => setOpen((v) => !v)}
           aria-label="Abrir lista"
         >
@@ -159,11 +159,12 @@ export function ProductCombobox({
         </button>
       </div>
 
+      {/* Em fluxo (não absolute) para não cobrir o campo de digitação nem os inputs abaixo */}
       {open ? (
         <ul
           id={listId}
           role="listbox"
-          className="absolute left-0 right-0 z-50 mt-1 max-h-48 w-full overflow-auto rounded-xl border border-line bg-[#121a2b] py-1 shadow-xl"
+          className="max-h-40 w-full overflow-auto rounded-xl border border-line bg-[#121a2b] py-1 shadow-lg"
         >
           {results.length === 0 ? (
             <li className="px-3 py-2 text-sm text-muted">
@@ -181,7 +182,11 @@ export function ProductCombobox({
                       focused ? "bg-brand/20 text-ink" : "hover:bg-white/5"
                     }`}
                     onMouseEnter={() => setHighlight(index)}
-                    onClick={() => choose(product)}
+                    onMouseDown={(e) => {
+                      // evita blur do input antes do clique (mobile/desktop)
+                      e.preventDefault();
+                      choose(product);
+                    }}
                   >
                     <span>
                       {product.name}

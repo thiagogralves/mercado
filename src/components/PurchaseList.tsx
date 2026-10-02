@@ -191,14 +191,7 @@ export function PurchaseList({
                         editingItemId === item.id ? (
                           <tr key={item.id}>
                             <td colSpan={6}>
-                              <div className="space-y-2 rounded-xl border border-line bg-black/20 p-3">
-                                <ProductCombobox
-                                  products={products}
-                                  value={editProductId}
-                                  onChange={setEditProductId}
-                                  label="Alimento"
-                                  placeholder="Buscar alimento…"
-                                />
+                              <div className="space-y-3 rounded-xl border border-line bg-black/20 p-3">
                                 <div className="flex flex-wrap gap-2">
                                   <input
                                     className="w-24 rounded-lg border border-line bg-black/30 px-2 py-1"
@@ -232,6 +225,13 @@ export function PurchaseList({
                                     Cancelar
                                   </button>
                                 </div>
+                                <ProductCombobox
+                                  products={products}
+                                  value={editProductId}
+                                  onChange={setEditProductId}
+                                  label="Alimento"
+                                  placeholder="Buscar alimento…"
+                                />
                               </div>
                             </td>
                           </tr>
