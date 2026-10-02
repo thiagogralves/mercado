@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { createPurchase } from "@/actions";
 import { useRouter } from "next/navigation";
+import { ProductCombobox } from "@/components/ProductCombobox";
 
 type Product = { id: number; name: string; unit: string };
 type Store = { id: number; name: string };
@@ -146,23 +147,15 @@ export function PurchaseForm({
         {lines.map((line) => (
           <div
             key={line.key}
-            className="grid gap-2 rounded-xl border border-line bg-white/70 p-3 md:grid-cols-[2fr_1fr_1fr_auto]"
+            className="grid gap-2 rounded-xl border border-line bg-white/[0.04] p-3 md:grid-cols-[2fr_1fr_1fr_auto]"
           >
-            <div className="field">
-              <label>Alimento</label>
-              <select
-                value={line.productId}
-                onChange={(e) => updateLine(line.key, { productId: e.target.value })}
-                required
-              >
-                <option value="">Selecione</option>
-                {products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.unit})
-                  </option>
-                ))}
-              </select>
-            </div>
+            <ProductCombobox
+              products={products}
+              value={line.productId}
+              onChange={(productId) => updateLine(line.key, { productId })}
+              required
+              placeholder="Digite o nome do alimento…"
+            />
             <div className="field">
               <label>Quantidade</label>
               <input

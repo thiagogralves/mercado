@@ -6,6 +6,7 @@ import { Camera, ImagePlus, Link2 } from "lucide-react";
 import { importMappedPurchase, previewNfce } from "@/actions";
 import type { NfceParseResult } from "@/lib/nfce";
 import { formatBRL } from "@/lib/money";
+import { ProductCombobox } from "@/components/ProductCombobox";
 import { QrScanner } from "@/components/QrScanner";
 import { ReceiptPhotoReader } from "@/components/ReceiptPhotoReader";
 
@@ -465,20 +466,15 @@ export function NfImportForm({
                         <option value="create">Criar alimento</option>
                       </select>
                       {row.mode === "existing" ? (
-                        <select
+                        <ProductCombobox
+                          products={products}
                           value={row.productId}
-                          onChange={(e) =>
-                            updateRow(index, { productId: e.target.value })
+                          onChange={(productId) =>
+                            updateRow(index, { productId })
                           }
-                          className="w-full rounded-lg border border-line bg-black/30 px-2 py-1"
-                        >
-                          <option value="">Selecione</option>
-                          {products.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                            </option>
-                          ))}
-                        </select>
+                          label=""
+                          placeholder="Buscar alimento…"
+                        />
                       ) : (
                         <input
                           value={row.createName}
