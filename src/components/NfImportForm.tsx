@@ -109,11 +109,24 @@ export function NfImportForm({
         .reduce((sum, r) => sum + (r.totalPrice || r.quantity * r.unitPrice), 0),
     [rows],
   );
+  const hasStore = Boolean(storeId || storeNameManual.trim());
 
   const appendItems = useCallback(
     (result: NfceParseResult, sourceUrl?: string) => {
       if (sourceUrl) setScannedUrl(sourceUrl);
-      if (result.storeName) setDetectedStore(result.storeName);
+      if (result.storeName) {
+        setDetectedStore(result.storeName);
+        if (!storeId && !storeNameManual.trim()) {
+          const match = stores.find(
+            (s) =>
+              s.name.toLowerCase() === result.storeName!.toLowerCase() ||
+              result.storeName!.toLowerCase().includes(s.name.toLowerCase()) ||
+              s.name.toLowerCase().includes(result.storeName!.toLowerCase()),
+          );
+          if (match) setStoreId(String(match.id));
+          else setStoreNameManual(result.storeName);
+        }
+      }
       if (result.purchasedAt && photoCount === 0) {
         setPurchasedAt(result.purchasedAt || defaultDate);
       }
@@ -156,7 +169,15 @@ export function NfImportForm({
       });
       setRows((prev) => [...prev, ...newRows]);
     },
-    [aliases, defaultDate, photoCount, products],
+    [
+      aliases,
+      defaultDate,
+      photoCount,
+      products,
+      storeId,
+      storeNameManual,
+      stores,
+    ],
   );
 
   const handleQrScan = useCallback(
@@ -215,6 +236,10 @@ export function NfImportForm({
 
   function confirmImport() {
     if (rows.length === 0) return;
+    if (!hasStore && !detectedStore) {
+      setError("Selecione ou digite o mercado antes de salvar.");
+      return;
+    }
     setError(null);
     startTransition(async () => {
       try {
@@ -263,22 +288,23 @@ export function NfImportForm({
             Captura inteligente
           </h2>
           <p className="mt-1 text-sm text-muted">
-            Informe o mercado, tire uma ou várias fotos da nota e revise os
-            itens antes de salvar numa compra só.
+            Antes de tirar ou anexar a foto, informe o mercado. Depois revise os
+            itens e salve numa compra só.
           </p>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 rounded-xl border border-brand/30 bg-brand/5 p-3 md:grid-cols-3">
           <div className="field md:col-span-1">
-            <label>Mercado</label>
+            <label>Mercado *</label>
             <select
               value={storeId}
               onChange={(e) => {
                 setStoreId(e.target.value);
                 if (e.target.value) setStoreNameManual("");
               }}
+              required
             >
-              <option value="">Detectar / digitar abaixo</option>
+              <option value="">Selecione o mercado</option>
               {stores.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -287,7 +313,7 @@ export function NfImportForm({
             </select>
           </div>
           <div className="field">
-            <label>Ou digite o mercado</label>
+            <label>Ou digite um mercado novo</label>
             <input
               value={storeNameManual}
               onChange={(e) => {
@@ -305,6 +331,11 @@ export function NfImportForm({
               onChange={(e) => setPurchasedAt(e.target.value)}
             />
           </div>
+          {!hasStore ? (
+            <p className="md:col-span-3 text-sm text-accent">
+              Selecione ou digite o mercado para liberar a câmera / anexo.
+            </p>
+          ) : null}
         </div>
 
         <div className="tab-bar">
@@ -337,11 +368,18 @@ export function NfImportForm({
           </button>
         </div>
 
-        {tab === "qr" ? (
+        {!hasStore ? (
+          <div className="panel grid place-items-center p-8 text-center text-sm text-muted">
+            Informe o mercado acima para tirar foto, anexar imagem ou escanear o
+            QR.
+          </div>
+        ) : null}
+
+        {hasStore && tab === "qr" ? (
           <QrScanner active={tab === "qr"} onScan={handleQrScan} />
         ) : null}
 
-        {tab === "photo" ? (
+        {hasStore && tab === "photo" ? (
           <ReceiptPhotoReader
             appendMode
             onResult={(result) => {
@@ -351,7 +389,7 @@ export function NfImportForm({
           />
         ) : null}
 
-        {tab === "url" ? (
+        {hasStore && tab === "url" ? (
           <div className="space-y-3">
             <div className="field">
               <label htmlFor="nfceUrl">URL do QR Code da NFC-e</label>

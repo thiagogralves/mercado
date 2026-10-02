@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import {
@@ -309,6 +309,104 @@ export async function createBatchPurchase(formData: FormData) {
 export async function deletePurchase(id: number) {
   await ready();
   await db.delete(purchases).where(eq(purchases.id, id));
+  revalidateAll();
+}
+
+export async function updatePurchase(input: {
+  id: number;
+  storeId: number;
+  purchasedAt?: string;
+}) {
+  await ready();
+  if (!input.id || !input.storeId) {
+    throw new Error("Informe a compra e o mercado.");
+  }
+
+  const patch: {
+    storeId: number;
+    purchasedAt?: string;
+    yearMonth?: string;
+    isoWeek?: string;
+  } = { storeId: input.storeId };
+
+  if (input.purchasedAt?.trim()) {
+    Object.assign(patch, buildPurchaseMeta(input.purchasedAt.trim()));
+  }
+
+  await db.update(purchases).set(patch).where(eq(purchases.id, input.id));
+  revalidateAll();
+}
+
+export async function updatePurchaseItem(input: {
+  id: number;
+  productId: number;
+  quantity: number;
+  totalPrice: number;
+}) {
+  await ready();
+  const quantity = Number(input.quantity);
+  const totalPrice = Number(input.totalPrice);
+  if (!input.id || !input.productId || !(quantity > 0) || !(totalPrice >= 0)) {
+    throw new Error("Preencha alimento, quantidade e valor pago.");
+  }
+
+  const unitPrice = quantity > 0 ? totalPrice / quantity : 0;
+
+  const [item] = await db
+    .select({ purchaseId: purchaseItems.purchaseId })
+    .from(purchaseItems)
+    .where(eq(purchaseItems.id, input.id))
+    .limit(1);
+  if (!item) throw new Error("Item não encontrado.");
+
+  await db
+    .update(purchaseItems)
+    .set({
+      productId: input.productId,
+      quantity,
+      unitPrice,
+      totalPrice,
+    })
+    .where(eq(purchaseItems.id, input.id));
+
+  const [sumRow] = await db
+    .select({
+      total: sql<number>`coalesce(sum(${purchaseItems.totalPrice}), 0)`,
+    })
+    .from(purchaseItems)
+    .where(eq(purchaseItems.purchaseId, item.purchaseId));
+
+  await db
+    .update(purchases)
+    .set({ totalAmount: Number(sumRow?.total ?? 0) })
+    .where(eq(purchases.id, item.purchaseId));
+
+  revalidateAll();
+}
+
+export async function deletePurchaseItem(id: number) {
+  await ready();
+  const [item] = await db
+    .select({ purchaseId: purchaseItems.purchaseId })
+    .from(purchaseItems)
+    .where(eq(purchaseItems.id, id))
+    .limit(1);
+  if (!item) return;
+
+  await db.delete(purchaseItems).where(eq(purchaseItems.id, id));
+
+  const [sumRow] = await db
+    .select({
+      total: sql<number>`coalesce(sum(${purchaseItems.totalPrice}), 0)`,
+    })
+    .from(purchaseItems)
+    .where(eq(purchaseItems.purchaseId, item.purchaseId));
+
+  await db
+    .update(purchases)
+    .set({ totalAmount: Number(sumRow?.total ?? 0) })
+    .where(eq(purchases.id, item.purchaseId));
+
   revalidateAll();
 }
 

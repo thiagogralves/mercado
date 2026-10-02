@@ -4,7 +4,12 @@ import { MonthSwitcher } from "@/components/MonthSwitcher";
 import { PurchaseList } from "@/components/PurchaseList";
 import { createBatchPurchase } from "@/actions";
 import { formatMonthLabel, toDateInput, toYearMonth } from "@/lib/dates";
-import { ensureSchema, listPurchases, listStores } from "@/lib/queries";
+import {
+  ensureSchema,
+  listProducts,
+  listPurchases,
+  listStores,
+} from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +23,10 @@ export default async function ComprasPage({
   await ensureSchema();
   const params = await searchParams;
   const yearMonth = params.mes ?? toYearMonth();
-  const [rows, stores] = await Promise.all([
+  const [rows, stores, products] = await Promise.all([
     listPurchases(yearMonth),
     listStores(),
+    listProducts(),
   ]);
 
   return (
@@ -40,7 +46,7 @@ export default async function ComprasPage({
       }
     >
       <div className="space-y-6">
-        <PurchaseList rows={rows} />
+        <PurchaseList rows={rows} products={products} stores={stores} />
 
         <section className="panel space-y-3 p-4 md:p-6">
           <h2 className="font-[family-name:var(--font-display)] text-xl">
