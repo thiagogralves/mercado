@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Sparkles } from "lucide-react";
 import { suggestFoodName } from "@/actions";
+import { CategoryField } from "@/components/CategoryField";
 
 type Props = {
-  products: Array<{ id: number; name: string }>;
+  products: Array<{ id: number; name: string; category?: string }>;
 };
 
 export function ProductFormWithAi({ products }: Props) {
@@ -14,6 +15,17 @@ export function ProductFormWithAi({ products }: Props) {
   const [category, setCategory] = useState("Geral");
   const [hint, setHint] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const categories = useMemo(
+    () =>
+      [
+        ...new Set(
+          products
+            .map((p) => p.category?.trim())
+            .filter((c): c is string => Boolean(c)),
+        ),
+      ].sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [products],
+  );
 
   function askAi() {
     if (!name.trim()) return;
@@ -88,16 +100,11 @@ export function ProductFormWithAi({ products }: Props) {
           <option value="ml">ml</option>
         </select>
       </div>
-      <div className="field">
-        <label htmlFor="category">Categoria</label>
-        <input
-          id="category"
-          name="category"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          placeholder="Ex.: Grãos"
-        />
-      </div>
+      <CategoryField
+        categories={categories}
+        value={category}
+        onChange={setCategory}
+      />
       <div className="field">
         <label htmlFor="barcode">Código de barras (opcional)</label>
         <input id="barcode" name="barcode" />
