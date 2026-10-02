@@ -1,32 +1,45 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 
 export function DeleteButton({
   action,
   label = "Excluir",
+  confirmMessage = "Tem certeza que deseja excluir?",
 }: {
   action: () => Promise<void>;
   label?: string;
+  confirmMessage?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   return (
-    <button
-      type="button"
-      className="btn btn-danger"
-      disabled={pending}
-      onClick={() => {
-        if (!confirm("Tem certeza que deseja excluir?")) return;
-        startTransition(async () => {
-          await action();
-          router.refresh();
-        });
-      }}
-    >
-      {pending ? "..." : label}
-    </button>
+    <div className="inline-flex flex-col items-end gap-1">
+      <button
+        type="button"
+        className="btn btn-danger"
+        disabled={pending}
+        onClick={() => {
+          if (!confirm(confirmMessage)) return;
+          setError(null);
+          startTransition(async () => {
+            try {
+              await action();
+              router.refresh();
+            } catch (err) {
+              setError(
+                err instanceof Error ? err.message : "Não foi possível excluir.",
+              );
+            }
+          });
+        }}
+      >
+        {pending ? "..." : label}
+      </button>
+      {error ? <p className="max-w-48 text-right text-xs text-up">{error}</p> : null}
+    </div>
   );
 }

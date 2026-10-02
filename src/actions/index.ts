@@ -3,7 +3,14 @@
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { monthlyQuotas, products, purchaseItems, purchases, stores } from "@/db/schema";
+import {
+  monthlyQuotas,
+  productAliases,
+  products,
+  purchaseItems,
+  purchases,
+  stores,
+} from "@/db/schema";
 import { normalizeUnit, parseNfceUrl } from "@/lib/nfce";
 import { parseReceiptWithGemini, suggestFoodNameWithGemini } from "@/lib/gemini-receipt";
 import {
@@ -86,6 +93,12 @@ export async function renameCategory(formData: FormData) {
 
 export async function deleteProduct(id: number) {
   await ready();
+  if (!id) throw new Error("Alimento inválido.");
+
+  // purchase_items tem ON DELETE RESTRICT — remove vínculos antes do alimento
+  await db.delete(purchaseItems).where(eq(purchaseItems.productId, id));
+  await db.delete(monthlyQuotas).where(eq(monthlyQuotas.productId, id));
+  await db.delete(productAliases).where(eq(productAliases.productId, id));
   await db.delete(products).where(eq(products.id, id));
   revalidateAll();
 }

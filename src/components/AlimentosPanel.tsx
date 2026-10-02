@@ -93,6 +93,7 @@ export function AlimentosPanel({ products }: { products: ProductFormItem[] }) {
                       </button>
                       <DeleteButton
                         action={deleteProduct.bind(null, item.id)}
+                        confirmMessage="Excluir este alimento? Se ele estiver em compras, cotas ou atalhos de NF, esses vínculos também serão removidos."
                       />
                     </div>
                   </td>
