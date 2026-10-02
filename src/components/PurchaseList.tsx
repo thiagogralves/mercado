@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
+import { AddToQuotaButton } from "@/components/AddToQuotaButton";
 import { DeleteButton } from "@/components/DeleteButton";
 import { deletePurchase } from "@/actions";
 import { formatDateBr } from "@/lib/dates";
@@ -10,6 +11,7 @@ import { formatBRL, formatQty } from "@/lib/money";
 
 type Item = {
   id: number;
+  productId: number;
   productName: string;
   unit: string;
   quantity: number;
@@ -21,6 +23,7 @@ type Item = {
 type PurchaseRow = {
   id: number;
   purchasedAt: string;
+  yearMonth: string;
   storeName: string;
   isoWeek: string;
   itemCount: number;
@@ -85,12 +88,13 @@ export function PurchaseList({ rows }: { rows: PurchaseRow[] }) {
                       <th>Qtd</th>
                       <th>Unit.</th>
                       <th>Pago</th>
+                      <th>Cota</th>
                     </tr>
                   </thead>
                   <tbody>
                     {row.items.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="text-muted">
+                        <td colSpan={5} className="text-muted">
                           Sem itens.
                         </td>
                       </tr>
@@ -110,6 +114,15 @@ export function PurchaseList({ rows }: { rows: PurchaseRow[] }) {
                           <td>{formatBRL(item.unitPrice)}</td>
                           <td className="font-semibold">
                             {formatBRL(item.totalPrice)}
+                          </td>
+                          <td>
+                            <AddToQuotaButton
+                              productId={item.productId}
+                              productName={item.productName}
+                              unit={item.unit}
+                              yearMonth={row.yearMonth}
+                              suggestedQty={item.quantity}
+                            />
                           </td>
                         </tr>
                       ))
