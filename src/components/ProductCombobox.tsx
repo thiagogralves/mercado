@@ -7,6 +7,8 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type MutableRefObject,
+  type RefObject,
 } from "react";
 import { Check, ChevronsUpDown, Search } from "lucide-react";
 
@@ -45,6 +47,8 @@ export function ProductCombobox({
   required,
   placeholder = "Digite para buscar…",
   label = "Alimento",
+  inputRef,
+  onPick,
 }: {
   products: ComboboxProduct[];
   value: string;
@@ -53,9 +57,13 @@ export function ProductCombobox({
   required?: boolean;
   placeholder?: string;
   label?: string;
+  inputRef?: RefObject<HTMLInputElement | null>;
+  /** Chamado depois de escolher um item (ex.: focar quantidade) */
+  onPick?: (productId: string) => void;
 }) {
   const listId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
+  const localInputRef = useRef<HTMLInputElement>(null);
   const selected = products.find((p) => String(p.id) === value) ?? null;
   const [query, setQuery] = useState(selected?.name ?? "");
   const [open, setOpen] = useState(false);
@@ -78,7 +86,10 @@ export function ProductCombobox({
     const ranked = products
       .map((p) => ({ product: p, score: scoreMatch(query, p.name) }))
       .filter((r) => r.score > 0)
-      .sort((a, b) => b.score - a.score || a.product.name.localeCompare(b.product.name));
+      .sort(
+        (a, b) =>
+          b.score - a.score || a.product.name.localeCompare(b.product.name),
+      );
     return ranked.slice(0, 12).map((r) => r.product);
   }, [products, query]);
 
@@ -90,32 +101,71 @@ export function ProductCombobox({
     onChange(String(product.id));
     setQuery(product.name);
     setOpen(false);
-    // tira o foco para a lista não reabrir no mesmo toque (mobile)
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
+    onPick?.(String(product.id));
+  }
+
+  /** Resolve digitação solta para um produto (match exato ou único). */
+  function resolveFromQuery(): ComboboxProduct | null {
+    if (selected) return selected;
+    const q = normalize(query);
+    if (!q) return null;
+    const exact = products.find((p) => normalize(p.name) === q);
+    if (exact) return exact;
+    if (results.length === 1) return results[0];
+    if (results.length > 0 && scoreMatch(query, results[0].name) >= 90) {
+      return results[0];
     }
+    return null;
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (!open && (e.key === "ArrowDown" || e.key === "Enter")) {
-      setOpen(true);
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
       return;
     }
-    if (!open) return;
 
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setHighlight((h) => Math.min(h + 1, Math.max(results.length - 1, 0)));
-    } else if (e.key === "ArrowUp") {
+      if (!open) setOpen(true);
+      else setHighlight((h) => Math.min(h + 1, Math.max(results.length - 1, 0)));
+      return;
+    }
+
+    if (e.key === "ArrowUp") {
+      if (!open) return;
       e.preventDefault();
       setHighlight((h) => Math.max(h - 1, 0));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      const item = results[highlight];
-      if (item) choose(item);
-    } else if (e.key === "Escape") {
-      setOpen(false);
+      return;
     }
+
+    if (e.key !== "Enter") return;
+
+    // Lista aberta: confirma o item destacado (não envia o form ainda)
+    if (open && results.length > 0) {
+      e.preventDefault();
+      const item = results[highlight] ?? results[0];
+      if (item) choose(item);
+      return;
+    }
+
+    // Lista fechada / sem seleção: tenta resolver o texto digitado
+    const resolved = resolveFromQuery();
+    if (resolved && String(resolved.id) !== value) {
+      e.preventDefault();
+      choose(resolved);
+      return;
+    }
+
+    // Já tem produto: deixa o Enter seguir para o form (submit / próximo campo)
+    if (value || resolved) {
+      setOpen(false);
+      return;
+    }
+
+    // Nada resolvido — abre a lista em vez de enviar form vazio
+    e.preventDefault();
+    setOpen(true);
   }
 
   return (
@@ -130,6 +180,13 @@ export function ProductCombobox({
           className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
         />
         <input
+          ref={(node) => {
+            localInputRef.current = node;
+            if (inputRef) {
+              (inputRef as MutableRefObject<HTMLInputElement | null>).current =
+                node;
+            }
+          }}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -159,7 +216,6 @@ export function ProductCombobox({
         </button>
       </div>
 
-      {/* Em fluxo (não absolute) para não cobrir o campo de digitação nem os inputs abaixo */}
       {open ? (
         <ul
           id={listId}
@@ -183,7 +239,6 @@ export function ProductCombobox({
                     }`}
                     onMouseEnter={() => setHighlight(index)}
                     onMouseDown={(e) => {
-                      // evita blur do input antes do clique (mobile/desktop)
                       e.preventDefault();
                       choose(product);
                     }}

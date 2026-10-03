@@ -1,6 +1,13 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import {
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { createPurchase } from "@/actions";
 import { useRouter } from "next/navigation";
@@ -15,6 +22,15 @@ type Line = {
   quantity: string;
   unitPrice: string;
 };
+
+function emptyLine(): Line {
+  return {
+    key: String(Date.now()) + Math.random().toString(16).slice(2),
+    productId: "",
+    quantity: "1",
+    unitPrice: "",
+  };
+}
 
 export function PurchaseForm({
   products,
@@ -31,9 +47,9 @@ export function PurchaseForm({
   const [storeId, setStoreId] = useState(String(stores[0]?.id ?? ""));
   const [purchasedAt, setPurchasedAt] = useState(defaultDate);
   const [notes, setNotes] = useState("");
-  const [lines, setLines] = useState<Line[]>([
-    { key: "1", productId: "", quantity: "1", unitPrice: "" },
-  ]);
+  const [lines, setLines] = useState<Line[]>([emptyLine()]);
+  const qtyRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const priceRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const total = useMemo(() => {
     return lines.reduce((sum, line) => {
@@ -44,36 +60,50 @@ export function PurchaseForm({
   }, [lines]);
 
   function updateLine(key: string, patch: Partial<Line>) {
-    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+    setLines((prev) =>
+      prev.map((l) => (l.key === key ? { ...l, ...patch } : l)),
+    );
   }
 
-  function addLine() {
-    setLines((prev) => [
-      ...prev,
-      {
-        key: String(Date.now()),
-        productId: "",
-        quantity: "1",
-        unitPrice: "",
-      },
-    ]);
+  function addLine(focus = true) {
+    const line = emptyLine();
+    setLines((prev) => [...prev, line]);
+    if (focus) {
+      requestAnimationFrame(() => {
+        // foco no combobox da nova linha: primeiro input da grid
+        const root = document.querySelector(
+          `[data-line-key="${line.key}"] input[role="combobox"]`,
+        ) as HTMLInputElement | null;
+        root?.focus();
+      });
+    }
+    return line.key;
   }
 
   function removeLine(key: string) {
-    setLines((prev) => (prev.length === 1 ? prev : prev.filter((l) => l.key !== key)));
+    setLines((prev) =>
+      prev.length === 1 ? prev : prev.filter((l) => l.key !== key),
+    );
   }
 
-  function onSubmit(e: React.FormEvent) {
+  function lineComplete(line: Line) {
+    const q = Number(line.quantity.replace(",", "."));
+    const p = Number(line.unitPrice.replace(",", "."));
+    return Boolean(line.productId && q > 0 && p >= 0 && line.unitPrice !== "");
+  }
+
+  function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
 
     const items = lines
-      .filter((l) => l.productId && l.quantity && l.unitPrice)
+      .filter((l) => l.productId && l.quantity && l.unitPrice !== "")
       .map((l) => ({
         productId: Number(l.productId),
         quantity: Number(l.quantity.replace(",", ".")),
         unitPrice: Number(l.unitPrice.replace(",", ".")),
-      }));
+      }))
+      .filter((i) => i.productId && i.quantity > 0);
 
     if (!storeId || items.length === 0) {
       setError("Selecione o mercado e preencha ao menos um item.");
@@ -94,6 +124,18 @@ export function PurchaseForm({
         setError(err instanceof Error ? err.message : "Erro ao salvar compra.");
       }
     });
+  }
+
+  function onPriceEnter(line: Line, e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    if (!lineComplete(line)) {
+      setError("Preencha alimento, quantidade e preço antes de adicionar.");
+      return;
+    }
+    setError(null);
+    // Enter adiciona mais uma linha; o botão registra a compra
+    addLine(true);
   }
 
   return (
@@ -139,7 +181,7 @@ export function PurchaseForm({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold">Itens</h3>
-          <button type="button" className="btn btn-secondary" onClick={addLine}>
+          <button type="button" className="btn btn-secondary" onClick={() => addLine()}>
             <Plus size={16} /> Adicionar linha
           </button>
         </div>
@@ -147,6 +189,7 @@ export function PurchaseForm({
         {lines.map((line) => (
           <div
             key={line.key}
+            data-line-key={line.key}
             className="grid gap-2 rounded-xl border border-line bg-white/[0.04] p-3 md:grid-cols-[2fr_1fr_1fr_auto]"
           >
             <ProductCombobox
@@ -155,12 +198,26 @@ export function PurchaseForm({
               onChange={(productId) => updateLine(line.key, { productId })}
               required
               placeholder="Digite o nome do alimento…"
+              onPick={() => {
+                requestAnimationFrame(() => qtyRefs.current[line.key]?.focus());
+              }}
             />
             <div className="field">
               <label>Quantidade</label>
               <input
+                ref={(node) => {
+                  qtyRefs.current[line.key] = node;
+                }}
                 value={line.quantity}
-                onChange={(e) => updateLine(line.key, { quantity: e.target.value })}
+                onChange={(e) =>
+                  updateLine(line.key, { quantity: e.target.value })
+                }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    priceRefs.current[line.key]?.focus();
+                  }
+                }}
                 inputMode="decimal"
                 required
               />
@@ -168,8 +225,14 @@ export function PurchaseForm({
             <div className="field">
               <label>Preço unitário</label>
               <input
+                ref={(node) => {
+                  priceRefs.current[line.key] = node;
+                }}
                 value={line.unitPrice}
-                onChange={(e) => updateLine(line.key, { unitPrice: e.target.value })}
+                onChange={(e) =>
+                  updateLine(line.key, { unitPrice: e.target.value })
+                }
+                onKeyDown={(e) => onPriceEnter(line, e)}
                 inputMode="decimal"
                 placeholder="0,00"
                 required
@@ -193,8 +256,14 @@ export function PurchaseForm({
         <p className="text-sm text-muted">
           Total estimado:{" "}
           <strong className="text-ink">
-            {total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+            {total.toLocaleString("pt-BR", {
+              style: "currency",
+              currency: "BRL",
+            })}
           </strong>
+          <span className="mt-1 block text-xs">
+            Enter no preço adiciona outra linha · botão salva a compra
+          </span>
         </p>
         <button type="submit" className="btn btn-primary" disabled={pending}>
           {pending ? "Salvando..." : "Registrar compra"}
