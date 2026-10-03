@@ -13,6 +13,7 @@ import {
   Wheat,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { ScrollFab } from "@/components/ScrollFab";
 
 const primaryLinks = [
   { href: "/", label: "Painel", icon: Home },
@@ -99,6 +100,8 @@ export function AppShell({
       </header>
 
       <main>{children}</main>
+
+      <ScrollFab />
 
       <nav className="mobile-nav" aria-label="Navegação principal">
         {primaryLinks.slice(0, 4).map(({ href, label, icon: Icon }) => (
