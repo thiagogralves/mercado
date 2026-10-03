@@ -4,9 +4,21 @@ import { eq, sql } from "drizzle-orm";
 import * as schema from "../src/db/schema";
 import { CATALOG_PRODUCTS, RIO_STORES } from "../src/lib/catalog-seed";
 
+function cleanEnv(value: string | undefined) {
+  if (!value) return undefined;
+  let v = value.trim();
+  if (
+    (v.startsWith('"') && v.endsWith('"')) ||
+    (v.startsWith("'") && v.endsWith("'"))
+  ) {
+    v = v.slice(1, -1).trim();
+  }
+  return v || undefined;
+}
+
 const client = createClient({
-  url: process.env.TURSO_DATABASE_URL ?? "file:local.db",
-  authToken: process.env.TURSO_AUTH_TOKEN || undefined,
+  url: cleanEnv(process.env.TURSO_DATABASE_URL) ?? "file:local.db",
+  authToken: cleanEnv(process.env.TURSO_AUTH_TOKEN),
 });
 
 const db = drizzle(client, { schema });
