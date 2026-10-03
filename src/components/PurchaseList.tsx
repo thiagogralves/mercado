@@ -15,6 +15,7 @@ import { DeleteButton } from "@/components/DeleteButton";
 import { ProductCombobox } from "@/components/ProductCombobox";
 import { formatDateBr } from "@/lib/dates";
 import { formatBRL, formatQty } from "@/lib/money";
+import { resolveProductFromQuery } from "@/lib/product-match";
 
 type Item = {
   id: number;
@@ -59,6 +60,7 @@ export function PurchaseList({
   );
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [editProductId, setEditProductId] = useState("");
+  const [editProductQuery, setEditProductQuery] = useState("");
   const [editQty, setEditQty] = useState("");
   const [editTotal, setEditTotal] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +76,7 @@ export function PurchaseList({
   function startEditItem(item: Item) {
     setEditingItemId(item.id);
     setEditProductId(String(item.productId));
+    setEditProductQuery(item.productName);
     setEditQty(String(item.quantity).replace(".", ","));
     setEditTotal(String(item.totalPrice).replace(".", ","));
     setError(null);
@@ -82,11 +85,22 @@ export function PurchaseList({
   function saveItem() {
     if (!editingItemId) return;
     setError(null);
+
+    const resolved =
+      resolveProductFromQuery(products, editProductQuery, editProductId) ??
+      products.find((p) => String(p.id) === editProductId);
+    if (!resolved) {
+      setError(
+        "Selecione um alimento da lista (digite o nome e escolha na busca).",
+      );
+      return;
+    }
+
     startTransition(async () => {
       try {
         await updatePurchaseItem({
           id: editingItemId,
-          productId: Number(editProductId),
+          productId: resolved.id,
           quantity: Number(editQty.replace(",", ".")),
           totalPrice: Number(editTotal.replace(",", ".")),
         });
@@ -228,9 +242,16 @@ export function PurchaseList({
                                 <ProductCombobox
                                   products={products}
                                   value={editProductId}
-                                  onChange={setEditProductId}
+                                  onChange={(id) => {
+                                    setEditProductId(id);
+                                    const p = products.find(
+                                      (x) => String(x.id) === id,
+                                    );
+                                    if (p) setEditProductQuery(p.name);
+                                  }}
+                                  onQueryChange={setEditProductQuery}
                                   label="Alimento"
-                                  placeholder="Buscar alimento…"
+                                  placeholder="Digite creme, cebola…"
                                 />
                               </div>
                             </td>

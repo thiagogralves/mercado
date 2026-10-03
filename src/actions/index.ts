@@ -40,21 +40,42 @@ function revalidateAll() {
 
 export async function createProduct(formData: FormData) {
   await ready();
-  const name = String(formData.get("name") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim().replace(/\s+/g, " ");
   const unit = String(formData.get("unit") ?? "un") as "un" | "kg" | "g" | "L" | "ml";
   const category = String(formData.get("category") ?? "Geral").trim() || "Geral";
   const barcode = String(formData.get("barcode") ?? "").trim() || null;
 
   if (!name) throw new Error("Nome do alimento é obrigatório.");
 
-  await db.insert(products).values({ name, unit, category, barcode });
-  revalidateAll();
+  const [duplicate] = await db
+    .select({ id: products.id, name: products.name })
+    .from(products)
+    .where(sql`lower(${products.name}) = lower(${name})`)
+    .limit(1);
+  if (duplicate) {
+    throw new Error(
+      `Já existe um alimento com esse nome: “${duplicate.name}”. Use a edição nele ou escolha outro nome.`,
+    );
+  }
+
+  try {
+    const [created] = await db
+      .insert(products)
+      .values({ name, unit, category, barcode })
+      .returning();
+    revalidateAll();
+    return created;
+  } catch {
+    throw new Error(
+      "Não foi possível salvar o alimento. Verifique se o nome já existe.",
+    );
+  }
 }
 
 export async function updateProduct(formData: FormData) {
   await ready();
   const id = Number(formData.get("id"));
-  const name = String(formData.get("name") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim().replace(/\s+/g, " ");
   const unit = String(formData.get("unit") ?? "un") as "un" | "kg" | "g" | "L" | "ml";
   const category = String(formData.get("category") ?? "Geral").trim() || "Geral";
   const barcode = String(formData.get("barcode") ?? "").trim() || null;
@@ -62,18 +83,24 @@ export async function updateProduct(formData: FormData) {
   if (!id || !name) throw new Error("Informe o alimento e o nome.");
 
   const [duplicate] = await db
-    .select({ id: products.id })
+    .select({ id: products.id, name: products.name })
     .from(products)
-    .where(eq(products.name, name))
+    .where(sql`lower(${products.name}) = lower(${name})`)
     .limit(1);
   if (duplicate && duplicate.id !== id) {
-    throw new Error("Já existe um alimento com esse nome.");
+    throw new Error(
+      `Já existe um alimento com esse nome: “${duplicate.name}”. Apague o duplicado ou use outro nome.`,
+    );
   }
 
-  await db
-    .update(products)
-    .set({ name, unit, category, barcode })
-    .where(eq(products.id, id));
+  try {
+    await db
+      .update(products)
+      .set({ name, unit, category, barcode })
+      .where(eq(products.id, id));
+  } catch {
+    throw new Error("Não foi possível atualizar o alimento.");
+  }
   revalidateAll();
 }
 

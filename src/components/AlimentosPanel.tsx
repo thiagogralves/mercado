@@ -28,6 +28,8 @@ export function AlimentosPanel({ products }: { products: ProductFormItem[] }) {
   const [items, setItems] = useState(products);
   const [editing, setEditing] = useState<ProductFormItem | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -49,29 +51,52 @@ export function AlimentosPanel({ products }: { products: ProductFormItem[] }) {
           key={editing?.id ?? "new"}
           action={async (formData) => {
             setError(null);
+            setOk(null);
+            setSaving(true);
             const y = window.scrollY;
-            if (editing) {
-              await updateProduct(formData);
-              const id = editing.id;
-              const name = String(formData.get("name") ?? "").trim();
-              const unit = String(formData.get("unit") ?? "un");
-              const category =
-                String(formData.get("category") ?? "Geral").trim() || "Geral";
-              const barcode =
-                String(formData.get("barcode") ?? "").trim() || null;
-              setItems((prev) =>
-                prev.map((p) =>
-                  p.id === id ? { ...p, name, unit, category, barcode } : p,
-                ),
+            try {
+              if (editing) {
+                await updateProduct(formData);
+                const id = editing.id;
+                const name = String(formData.get("name") ?? "").trim();
+                const unit = String(formData.get("unit") ?? "un");
+                const category =
+                  String(formData.get("category") ?? "Geral").trim() || "Geral";
+                const barcode =
+                  String(formData.get("barcode") ?? "").trim() || null;
+                setItems((prev) =>
+                  prev.map((p) =>
+                    p.id === id ? { ...p, name, unit, category, barcode } : p,
+                  ),
+                );
+                setEditing(null);
+                setOk(`“${name}” atualizado.`);
+              } else {
+                const created = await createProduct(formData);
+                if (created) {
+                  setItems((prev) =>
+                    [...prev, created as ProductFormItem].sort((a, b) =>
+                      a.name.localeCompare(b.name, "pt-BR"),
+                    ),
+                  );
+                  setOk(`“${created.name}” cadastrado.`);
+                } else {
+                  setOk("Alimento cadastrado.");
+                }
+              }
+              startTransition(() => {
+                router.refresh();
+                restoreScroll(y);
+              });
+            } catch (err) {
+              setError(
+                err instanceof Error
+                  ? err.message
+                  : "Não foi possível salvar o alimento.",
               );
-              setEditing(null);
-            } else {
-              await createProduct(formData);
+            } finally {
+              setSaving(false);
             }
-            startTransition(() => {
-              router.refresh();
-              restoreScroll(y);
-            });
           }}
         >
           <ProductFormWithAi
@@ -79,12 +104,18 @@ export function AlimentosPanel({ products }: { products: ProductFormItem[] }) {
             editing={editing}
             onCancelEdit={() => setEditing(null)}
           />
+          {error ? (
+            <p className="mt-2 text-sm text-up">{error}</p>
+          ) : null}
+          {ok ? <p className="mt-2 text-sm text-accent">{ok}</p> : null}
+          {saving ? (
+            <p className="mt-2 text-xs text-muted">Salvando…</p>
+          ) : null}
         </form>
         <CategoryManager categories={categories} />
       </div>
 
       <div className="panel table-wrap p-2 md:p-4">
-        {error ? <p className="mb-2 px-2 text-sm text-up">{error}</p> : null}
         <table className="data">
           <thead>
             <tr>
@@ -117,7 +148,11 @@ export function AlimentosPanel({ products }: { products: ProductFormItem[] }) {
                       <button
                         type="button"
                         className="btn btn-secondary !px-3 !py-1.5 text-xs"
-                        onClick={() => setEditing(item)}
+                        onClick={() => {
+                          setError(null);
+                          setOk(null);
+                          setEditing(item);
+                        }}
                       >
                         <Pencil size={14} /> Editar
                       </button>
@@ -126,6 +161,7 @@ export function AlimentosPanel({ products }: { products: ProductFormItem[] }) {
                         confirmMessage="Excluir este alimento? Se ele estiver em compras, cotas ou atalhos de NF, esses vínculos também serão removidos."
                         action={async () => {
                           setError(null);
+                          setOk(null);
                           const y = window.scrollY;
                           deletedIds.current.add(item.id);
                           setItems((prev) =>

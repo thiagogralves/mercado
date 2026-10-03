@@ -88,7 +88,7 @@ export function CategoryField({
           if (next === NEW_VALUE) {
             setAddingNew(true);
             setCustom("");
-            onChange("");
+            // mantém a categoria atual até digitar a nova (evita travar o form)
             return;
           }
           setAddingNew(false);
@@ -110,10 +110,9 @@ export function CategoryField({
           value={custom}
           onChange={(e) => {
             setCustom(e.target.value);
-            onChange(e.target.value);
+            if (e.target.value.trim()) onChange(e.target.value);
           }}
           placeholder="Nome da nova categoria"
-          required
         />
       ) : null}
 

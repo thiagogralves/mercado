@@ -11,33 +11,13 @@ import {
   type RefObject,
 } from "react";
 import { Check, ChevronsUpDown, Search } from "lucide-react";
+import {
+  rankProducts,
+  resolveProductFromQuery,
+  type MatchableProduct,
+} from "@/lib/product-match";
 
-export type ComboboxProduct = {
-  id: number;
-  name: string;
-  unit?: string;
-};
-
-function normalize(text: string) {
-  return text
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
-
-function scoreMatch(query: string, name: string) {
-  const q = normalize(query);
-  const n = normalize(name);
-  if (!q) return 1;
-  if (n === q) return 100;
-  if (n.startsWith(q)) return 90;
-  if (n.includes(q)) return 75;
-  const tokens = q.split(/\s+/).filter(Boolean);
-  const hits = tokens.filter((t) => n.includes(t)).length;
-  if (hits === 0) return 0;
-  return 40 + hits * 15;
-}
+export type ComboboxProduct = MatchableProduct;
 
 export function ProductCombobox({
   products,
@@ -49,6 +29,7 @@ export function ProductCombobox({
   label = "Alimento",
   inputRef,
   onPick,
+  onQueryChange,
 }: {
   products: ComboboxProduct[];
   value: string;
@@ -58,8 +39,8 @@ export function ProductCombobox({
   placeholder?: string;
   label?: string;
   inputRef?: RefObject<HTMLInputElement | null>;
-  /** Chamado depois de escolher um item (ex.: focar quantidade) */
   onPick?: (productId: string) => void;
+  onQueryChange?: (query: string) => void;
 }) {
   const listId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -76,22 +57,24 @@ export function ProductCombobox({
 
   useEffect(() => {
     function onDocPointer(e: Event) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      if (!rootRef.current?.contains(e.target as Node)) {
+        setOpen(false);
+        // ao sair, tenta casar o texto digitado com um alimento
+        const resolved = resolveProductFromQuery(products, query, value);
+        if (resolved && String(resolved.id) !== value) {
+          onChange(String(resolved.id));
+          setQuery(resolved.name);
+        }
+      }
     }
     document.addEventListener("pointerdown", onDocPointer);
     return () => document.removeEventListener("pointerdown", onDocPointer);
-  }, []);
+  }, [onChange, products, query, value]);
 
-  const results = useMemo(() => {
-    const ranked = products
-      .map((p) => ({ product: p, score: scoreMatch(query, p.name) }))
-      .filter((r) => r.score > 0)
-      .sort(
-        (a, b) =>
-          b.score - a.score || a.product.name.localeCompare(b.product.name),
-      );
-    return ranked.slice(0, 12).map((r) => r.product);
-  }, [products, query]);
+  const results = useMemo(
+    () => rankProducts(products, query, 40),
+    [products, query],
+  );
 
   useEffect(() => {
     setHighlight(0);
@@ -100,22 +83,9 @@ export function ProductCombobox({
   function choose(product: ComboboxProduct) {
     onChange(String(product.id));
     setQuery(product.name);
+    onQueryChange?.(product.name);
     setOpen(false);
     onPick?.(String(product.id));
-  }
-
-  /** Resolve digitação solta para um produto (match exato ou único). */
-  function resolveFromQuery(): ComboboxProduct | null {
-    if (selected) return selected;
-    const q = normalize(query);
-    if (!q) return null;
-    const exact = products.find((p) => normalize(p.name) === q);
-    if (exact) return exact;
-    if (results.length === 1) return results[0];
-    if (results.length > 0 && scoreMatch(query, results[0].name) >= 90) {
-      return results[0];
-    }
-    return null;
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -141,7 +111,6 @@ export function ProductCombobox({
 
     if (e.key !== "Enter") return;
 
-    // Lista aberta: confirma o item destacado (não envia o form ainda)
     if (open && results.length > 0) {
       e.preventDefault();
       const item = results[highlight] ?? results[0];
@@ -149,21 +118,18 @@ export function ProductCombobox({
       return;
     }
 
-    // Lista fechada / sem seleção: tenta resolver o texto digitado
-    const resolved = resolveFromQuery();
+    const resolved = resolveProductFromQuery(products, query, value);
     if (resolved && String(resolved.id) !== value) {
       e.preventDefault();
       choose(resolved);
       return;
     }
 
-    // Já tem produto: deixa o Enter seguir para o form (submit / próximo campo)
     if (value || resolved) {
       setOpen(false);
       return;
     }
 
-    // Nada resolvido — abre a lista em vez de enviar form vazio
     e.preventDefault();
     setOpen(true);
   }
@@ -189,9 +155,11 @@ export function ProductCombobox({
           }}
           value={query}
           onChange={(e) => {
-            setQuery(e.target.value);
+            const next = e.target.value;
+            setQuery(next);
+            onQueryChange?.(next);
             setOpen(true);
-            if (selected && e.target.value !== selected.name) {
+            if (selected && next !== selected.name) {
               onChange("");
             }
           }}
@@ -220,11 +188,16 @@ export function ProductCombobox({
         <ul
           id={listId}
           role="listbox"
-          className="max-h-40 w-full overflow-auto rounded-xl border border-line bg-[#121a2b] py-1 shadow-lg"
+          className="max-h-52 w-full overflow-auto rounded-xl border border-line bg-[#121a2b] py-1 shadow-lg"
         >
-          {results.length === 0 ? (
+          {!query.trim() ? (
             <li className="px-3 py-2 text-sm text-muted">
-              Nenhum alimento encontrado para “{query}”
+              Digite o nome do alimento para buscar no catálogo…
+            </li>
+          ) : results.length === 0 ? (
+            <li className="px-3 py-2 text-sm text-muted">
+              Nenhum alimento encontrado para “{query}”. Cadastre em Alimentos se
+              ainda não existir.
             </li>
           ) : (
             results.map((product, index) => {
