@@ -203,7 +203,7 @@ export function ProductCombobox({
           aria-expanded={open}
           aria-controls={listId}
           aria-autocomplete="list"
-          className="relative z-10 w-full rounded-[0.9rem] border border-line bg-[rgba(7,11,20,0.65)] py-2.5 pl-9 pr-10 text-ink outline-none transition focus:border-[rgba(200,245,66,0.55)] focus:shadow-[0_0_0_3px_rgba(200,245,66,0.12)]"
+          className="relative z-10 w-full !rounded-[0.9rem] !border !border-line !bg-[rgba(7,11,20,0.65)] !py-2.5 !pl-10 !pr-11 text-ink outline-none transition focus:!border-[rgba(200,245,66,0.55)] focus:!shadow-[0_0_0_3px_rgba(200,245,66,0.12)]"
           required={required && !value}
         />
         <button
