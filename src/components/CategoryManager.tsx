@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil } from "lucide-react";
 import { renameCategory } from "@/actions";
+import { refreshKeepingScroll } from "@/lib/refresh-keep-scroll";
 
 export function CategoryManager({ categories }: { categories: string[] }) {
   const router = useRouter();
@@ -37,7 +38,7 @@ export function CategoryManager({ categories }: { categories: string[] }) {
         await renameCategory(formData);
         setEditing(null);
         setNextName("");
-        router.refresh();
+        refreshKeepingScroll(router);
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Não foi possível renomear.",

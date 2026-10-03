@@ -14,13 +14,7 @@ import {
   ProductFormWithAi,
   type ProductFormItem,
 } from "@/components/ProductFormWithAi";
-
-function restoreScroll(y: number) {
-  window.scrollTo({ top: y });
-  requestAnimationFrame(() => window.scrollTo({ top: y }));
-  setTimeout(() => window.scrollTo({ top: y }), 80);
-  setTimeout(() => window.scrollTo({ top: y }), 250);
-}
+import { refreshKeepingScroll } from "@/lib/refresh-keep-scroll";
 
 export function AlimentosPanel({ products }: { products: ProductFormItem[] }) {
   const router = useRouter();
@@ -53,7 +47,6 @@ export function AlimentosPanel({ products }: { products: ProductFormItem[] }) {
             setError(null);
             setOk(null);
             setSaving(true);
-            const y = window.scrollY;
             try {
               if (editing) {
                 await updateProduct(formData);
@@ -85,8 +78,7 @@ export function AlimentosPanel({ products }: { products: ProductFormItem[] }) {
                 }
               }
               startTransition(() => {
-                router.refresh();
-                restoreScroll(y);
+                refreshKeepingScroll(router);
               });
             } catch (err) {
               setError(
@@ -162,7 +154,6 @@ export function AlimentosPanel({ products }: { products: ProductFormItem[] }) {
                         action={async () => {
                           setError(null);
                           setOk(null);
-                          const y = window.scrollY;
                           deletedIds.current.add(item.id);
                           setItems((prev) =>
                             prev.filter((p) => p.id !== item.id),
@@ -186,8 +177,7 @@ export function AlimentosPanel({ products }: { products: ProductFormItem[] }) {
                             throw err;
                           }
                           startTransition(() => {
-                            router.refresh();
-                            restoreScroll(y);
+                            refreshKeepingScroll(router);
                           });
                         }}
                       />

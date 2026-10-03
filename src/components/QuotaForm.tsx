@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { upsertQuota } from "@/actions";
 import { ProductCombobox } from "@/components/ProductCombobox";
+import { refreshKeepingScroll } from "@/lib/refresh-keep-scroll";
 
 type Product = { id: number; name: string; unit: string };
 
@@ -60,7 +61,7 @@ export function QuotaForm({
         setQuantity("");
         setNotes("");
         setFormKey((k) => k + 1);
-        router.refresh();
+        refreshKeepingScroll(router);
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Não foi possível salvar a cota.",

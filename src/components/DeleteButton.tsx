@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { refreshKeepingScroll } from "@/lib/refresh-keep-scroll";
 
 export function DeleteButton({
   action,
@@ -30,18 +31,11 @@ export function DeleteButton({
         onClick={() => {
           if (!confirm(confirmMessage)) return;
           setError(null);
-          const scrollY = window.scrollY;
           startTransition(async () => {
             try {
               await action();
               onSuccess?.();
-              if (refresh) {
-                router.refresh();
-                // refresh do App Router costuma jogar pro topo — restaura a posição
-                requestAnimationFrame(() => window.scrollTo({ top: scrollY }));
-                setTimeout(() => window.scrollTo({ top: scrollY }), 50);
-                setTimeout(() => window.scrollTo({ top: scrollY }), 200);
-              }
+              if (refresh) refreshKeepingScroll(router);
             } catch (err) {
               setError(
                 err instanceof Error ? err.message : "Não foi possível excluir.",

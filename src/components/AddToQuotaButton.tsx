@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Target } from "lucide-react";
 import { addProductToMonthlyQuota } from "@/actions";
+import { refreshKeepingScroll } from "@/lib/refresh-keep-scroll";
 
 export function AddToQuotaButton({
   productId,
@@ -34,7 +35,7 @@ export function AddToQuotaButton({
           targetQuantity: Number(qty.replace(",", ".")),
         });
         setOpen(false);
-        router.refresh();
+        refreshKeepingScroll(router);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Erro ao salvar cota.");
       }

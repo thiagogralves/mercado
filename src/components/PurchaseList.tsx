@@ -16,6 +16,7 @@ import { ProductCombobox } from "@/components/ProductCombobox";
 import { formatDateBr } from "@/lib/dates";
 import { formatBRL, formatQty } from "@/lib/money";
 import { resolveProductFromQuery } from "@/lib/product-match";
+import { refreshKeepingScroll } from "@/lib/refresh-keep-scroll";
 
 type Item = {
   id: number;
@@ -105,7 +106,7 @@ export function PurchaseList({
           totalPrice: Number(editTotal.replace(",", ".")),
         });
         setEditingItemId(null);
-        router.refresh();
+        refreshKeepingScroll(router);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Erro ao salvar item.");
       }
@@ -121,7 +122,7 @@ export function PurchaseList({
           id: purchaseId,
           storeId: Number(storeId),
         });
-        router.refresh();
+        refreshKeepingScroll(router);
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Erro ao atualizar mercado.",
