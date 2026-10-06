@@ -7,7 +7,6 @@ import type { NfceParseResult } from "@/lib/nfce";
 
 type Props = {
   onResult: (result: NfceParseResult) => void;
-  /** Quando true, cada foto adiciona itens sem substituir a leitura anterior */
   appendMode?: boolean;
 };
 
@@ -18,44 +17,121 @@ type Shot = {
   label: string;
 };
 
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Falha ao ler a imagem."));
+    reader.onload = () => {
+      const result = String(reader.result ?? "");
+      const comma = result.indexOf(",");
+      if (comma < 0) {
+        reject(new Error("Formato de imagem inválido."));
+        return;
+      }
+      resolve(result.slice(comma + 1));
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
+function loadImageElement(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(
+        new Error(
+          "Não foi possível abrir esta imagem. Tente tirar de novo em JPEG/PNG (evite HEIC).",
+        ),
+      );
+    };
+    img.src = url;
+  });
+}
+
 async function fileToCompressedBase64(file: File): Promise<{
   base64: string;
   mimeType: string;
 }> {
-  const bitmap = await createImageBitmap(file);
-  const maxSide = 1600;
-  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-  const width = Math.max(1, Math.round(bitmap.width * scale));
-  const height = Math.max(1, Math.round(bitmap.height * scale));
+  if (!file || file.size < 50) {
+    throw new Error("Arquivo de imagem inválido.");
+  }
+  if (file.size > 20 * 1024 * 1024) {
+    throw new Error("Imagem muito grande. Tire outra foto mais leve.");
+  }
+
+  let width = 0;
+  let height = 0;
+  let drawable: CanvasImageSource | null = null;
+  let bitmap: ImageBitmap | null = null;
+
+  try {
+    if (typeof createImageBitmap === "function") {
+      bitmap = await createImageBitmap(file);
+      width = bitmap.width;
+      height = bitmap.height;
+      drawable = bitmap;
+    }
+  } catch {
+    bitmap = null;
+  }
+
+  if (!drawable) {
+    const img = await loadImageElement(file);
+    width = img.naturalWidth || img.width;
+    height = img.naturalHeight || img.height;
+    drawable = img;
+  }
+
+  if (!width || !height) {
+    throw new Error("Dimensões da imagem inválidas.");
+  }
+
+  const maxSide = 1400;
+  const scale = Math.min(1, maxSide / Math.max(width, height));
+  const targetW = Math.max(1, Math.round(width * scale));
+  const targetH = Math.max(1, Math.round(height * scale));
 
   const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = targetW;
+  canvas.height = targetH;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Não foi possível processar a imagem.");
-  ctx.drawImage(bitmap, 0, 0, width, height);
-  bitmap.close();
+  ctx.drawImage(drawable, 0, 0, targetW, targetH);
+  bitmap?.close();
 
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       (b) => (b ? resolve(b) : reject(new Error("Falha ao compactar imagem."))),
       "image/jpeg",
-      0.82,
+      0.8,
     );
   });
 
-  const buffer = await blob.arrayBuffer();
-  let binary = "";
-  const bytes = new Uint8Array(buffer);
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  const base64 = await blobToBase64(blob);
+  if (base64.length < 100) {
+    throw new Error("Imagem processada ficou inválida. Tente outra foto.");
   }
 
-  return {
-    base64: btoa(binary),
-    mimeType: "image/jpeg",
-  };
+  return { base64, mimeType: "image/jpeg" };
+}
+
+function friendlyError(err: unknown): string {
+  if (err instanceof Error && err.message) {
+    const msg = err.message;
+    // Next/React production hides server details behind #441
+    if (/Minified React error #441|#441|Server Components render/i.test(msg)) {
+      return "Falha ao processar a nota no servidor. Tente outra foto (JPEG), com boa luz, ou tente de novo.";
+    }
+    return msg;
+  }
+  if (typeof err === "string" && err.trim()) return err;
+  return "Falha ao ler a nota com IA.";
 }
 
 export function ReceiptPhotoReader({ onResult, appendMode = true }: Props) {
@@ -69,7 +145,7 @@ export function ReceiptPhotoReader({ onResult, appendMode = true }: Props) {
   async function handleFile(file: File) {
     setError(null);
     setBusy(true);
-    const id = String(Date.now());
+    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const preview = URL.createObjectURL(file);
     setShots((prev) => [
       ...(appendMode ? prev : []),
@@ -79,23 +155,27 @@ export function ReceiptPhotoReader({ onResult, appendMode = true }: Props) {
 
     try {
       const { base64, mimeType } = await fileToCompressedBase64(file);
-      const parsed = await readReceiptWithAi({ base64, mimeType });
-      onResult(parsed);
+      const result = await readReceiptWithAi({ base64, mimeType });
+
+      if (!result.ok) {
+        throw new Error(result.error);
+      }
+
+      onResult(result.data);
       setShots((prev) =>
         prev.map((s) =>
           s.id === id
             ? {
                 ...s,
                 status: "ok",
-                label: `${parsed.items.length} itens`,
+                label: `${result.data.items.length} itens`,
               }
             : s,
         ),
       );
-      setStatus(`${parsed.items.length} item(ns) lidos nesta foto`);
+      setStatus(`${result.data.items.length} item(ns) lidos nesta foto`);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Falha ao ler a nota com IA.";
+      const message = friendlyError(err);
       setError(message);
       setStatus(null);
       setShots((prev) =>
@@ -119,7 +199,7 @@ export function ReceiptPhotoReader({ onResult, appendMode = true }: Props) {
       <input
         ref={cameraRef}
         type="file"
-        accept="image/*"
+        accept="image/*,image/jpeg,image/png,image/webp"
         capture="environment"
         className="hidden"
         onChange={onPick}
@@ -127,7 +207,7 @@ export function ReceiptPhotoReader({ onResult, appendMode = true }: Props) {
       <input
         ref={galleryRef}
         type="file"
-        accept="image/*"
+        accept="image/*,image/jpeg,image/png,image/webp"
         className="hidden"
         onChange={onPick}
       />
@@ -196,9 +276,9 @@ export function ReceiptPhotoReader({ onResult, appendMode = true }: Props) {
         <div className="panel grid place-items-center p-8 text-center">
           <Sparkles className="mb-2 text-brand" size={28} />
           <p className="text-sm text-muted">
-            Tire foto ou anexe da galeria. Nota grande? use várias imagens
-            (topo, meio, fim). A IA usa o <strong>valor pago</strong> (última
-            coluna).
+            Tire foto ou anexe da galeria. Preferível JPEG/PNG. Nota grande? use
+            várias imagens (topo, meio, fim). A IA usa o{" "}
+            <strong>valor pago</strong> (última coluna).
           </p>
         </div>
       )}

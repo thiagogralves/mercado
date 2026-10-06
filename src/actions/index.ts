@@ -445,21 +445,38 @@ export async function previewNfce(url: string) {
 export async function readReceiptWithAi(input: {
   base64: string;
   mimeType: string;
-}) {
-  await ready();
-  if (!input.base64 || input.base64.length < 100) {
-    throw new Error("Imagem inválida.");
-  }
-  if (input.base64.length > 8_000_000) {
-    throw new Error("Imagem muito grande. Tire uma foto mais leve ou aproxime o cupom.");
-  }
+}): Promise<
+  | { ok: true; data: Awaited<ReturnType<typeof parseReceiptWithGemini>> }
+  | { ok: false; error: string }
+> {
+  try {
+    await ready();
+    if (!input.base64 || input.base64.length < 100) {
+      return { ok: false, error: "Imagem inválida." };
+    }
+    if (input.base64.length > 8_000_000) {
+      return {
+        ok: false,
+        error:
+          "Imagem muito grande. Tire uma foto mais leve ou aproxime o cupom.",
+      };
+    }
 
-  const catalog = await listProducts();
-  return parseReceiptWithGemini({
-    base64: input.base64,
-    mimeType: input.mimeType || "image/jpeg",
-    catalogNames: catalog.map((p) => p.name),
-  });
+    const catalog = await listProducts();
+    const data = await parseReceiptWithGemini({
+      base64: input.base64,
+      mimeType: input.mimeType || "image/jpeg",
+      catalogNames: catalog.map((p) => p.name),
+    });
+    return { ok: true, data };
+  } catch (err) {
+    const message =
+      err instanceof Error
+        ? err.message
+        : "Falha ao ler a nota com IA. Tente outra foto.";
+    console.error("[readReceiptWithAi]", message);
+    return { ok: false, error: message };
+  }
 }
 
 export async function suggestFoodName(rawName: string) {
