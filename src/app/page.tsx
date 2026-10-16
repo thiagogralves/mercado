@@ -14,6 +14,7 @@ import {
   getQuotaProgress,
   getWeeklyPriceChanges,
   getWeeklySpend,
+  listStores,
 } from "@/lib/queries";
 import { seedDemoData } from "@/actions";
 
@@ -30,13 +31,14 @@ export default async function HomePage({
   const params = await searchParams;
   const yearMonth = params.mes ?? toYearMonth();
 
-  const [quotas, spend, weeklySpend, weeklyChanges, productHistory] =
+  const [quotas, spend, weeklySpend, weeklyChanges, productHistory, stores] =
     await Promise.all([
       getQuotaProgress(yearMonth),
       getMonthlySpend(yearMonth),
       getWeeklySpend(yearMonth),
       getWeeklyPriceChanges(yearMonth),
       getProductPriceHistory(yearMonth),
+      listStores(),
     ]);
 
   const remainingItems = quotas.filter((q) => q.remainingQuantity > 0).length;
@@ -134,7 +136,7 @@ export default async function HomePage({
               Gerenciar
             </Link>
           </div>
-          <QuotaCards items={quotas} />
+          <QuotaCards items={quotas} stores={stores} yearMonth={yearMonth} />
         </section>
 
         <section className="space-y-3">

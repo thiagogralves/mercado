@@ -562,6 +562,48 @@ export async function importMappedPurchase(input: {
   });
 }
 
+/** Registra quantidade comprada de um alimento da cota (compra manual). */
+export async function registerManualQuotaPurchase(input: {
+  productId: number;
+  storeId: number;
+  quantity: number;
+  unitPrice?: number;
+  purchasedAt?: string;
+  yearMonth?: string;
+}) {
+  await ready();
+  const quantity = Number(input.quantity);
+  const unitPrice = Number(input.unitPrice ?? 0);
+  if (!input.productId || !input.storeId || !(quantity > 0)) {
+    throw new Error("Informe mercado e quantidade comprada.");
+  }
+  if (unitPrice < 0) {
+    throw new Error("Preço inválido.");
+  }
+
+  const yearMonth = input.yearMonth || toYearMonth();
+  let purchasedAt = input.purchasedAt?.trim() || "";
+  if (!purchasedAt || toYearMonth(purchasedAt) !== yearMonth) {
+    // Garante que a compra conte no mês da cota visualizada
+    const today = toDateInput();
+    purchasedAt =
+      toYearMonth(today) === yearMonth ? today : `${yearMonth}-01`;
+  }
+
+  await createPurchase({
+    storeId: input.storeId,
+    purchasedAt,
+    notes: "Registro manual na cota",
+    items: [
+      {
+        productId: input.productId,
+        quantity,
+        unitPrice,
+      },
+    ],
+  });
+}
+
 export async function addProductToMonthlyQuota(input: {
   productId: number;
   targetQuantity: number;

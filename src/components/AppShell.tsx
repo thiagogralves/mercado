@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ScrollFab } from "@/components/ScrollFab";
-import { ShoppingListMenu } from "@/components/ShoppingListMenu";
+import { ShoppingListNavLink } from "@/components/ShoppingListNavLink";
 import { ShoppingListProvider } from "@/components/ShoppingListProvider";
 
 const primaryLinks = [
@@ -90,7 +90,7 @@ export function AppShell({
                 );
               },
             )}
-            <ShoppingListMenu variant="desktop" />
+            <ShoppingListNavLink variant="desktop" />
           </nav>
 
           <div className="flex flex-wrap items-end justify-between gap-3 animate-rise">
@@ -120,7 +120,7 @@ export function AppShell({
               {label}
             </Link>
           ))}
-          <ShoppingListMenu variant="mobile" />
+          <ShoppingListNavLink variant="mobile" />
           <button
             type="button"
             className={`flex flex-col items-center gap-0.5 rounded-[1rem] px-1 py-2 text-[0.65rem] font-bold ${
@@ -144,20 +144,18 @@ export function AppShell({
               className="panel absolute bottom-[calc(var(--nav-h)+1.5rem+var(--safe-bottom))] left-1/2 w-[min(360px,calc(100%-1rem))] -translate-x-1/2 space-y-1 p-2"
               onClick={(e) => e.stopPropagation()}
             >
-              {[
-                ...moreLinks,
-                primaryLinks[3],
-                primaryLinks[4],
-              ].map(({ href, label, icon: Icon }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold hover:bg-white/5"
-                >
-                  <Icon size={18} className="text-brand" />
-                  {label}
-                </Link>
-              ))}
+              {[...moreLinks, primaryLinks[3], primaryLinks[4]].map(
+                ({ href, label, icon: Icon }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold hover:bg-white/5"
+                  >
+                    <Icon size={18} className="text-brand" />
+                    {label}
+                  </Link>
+                ),
+              )}
             </div>
           </div>
         ) : null}

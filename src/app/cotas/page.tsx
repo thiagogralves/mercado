@@ -13,6 +13,7 @@ import {
   ensureSchema,
   getQuotaProgress,
   listProducts,
+  listStores,
 } from "@/lib/queries";
 import { db } from "@/db";
 import { monthlyQuotas, products } from "@/db/schema";
@@ -38,7 +39,7 @@ export default async function CotasPage({
   const yearMonth = params.mes ?? toYearMonth();
   const fromMonth = previousMonth(yearMonth);
 
-  const [progress, productList, quotaRows] = await Promise.all([
+  const [progress, productList, quotaRows, stores] = await Promise.all([
     getQuotaProgress(yearMonth),
     listProducts(),
     db
@@ -54,6 +55,7 @@ export default async function CotasPage({
       .innerJoin(products, eq(monthlyQuotas.productId, products.id))
       .where(eq(monthlyQuotas.yearMonth, yearMonth))
       .orderBy(asc(products.name)),
+    listStores(),
   ]);
 
   async function copyAction() {
@@ -120,7 +122,11 @@ export default async function CotasPage({
           <h2 className="font-[family-name:var(--font-display)] text-xl">
             Quanto falta comprar
           </h2>
-          <QuotaCards items={progress} />
+          <QuotaCards
+            items={progress}
+            stores={stores}
+            yearMonth={yearMonth}
+          />
         </section>
       </div>
     </AppShell>
