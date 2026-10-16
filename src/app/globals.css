@@ -356,7 +356,8 @@ table.data th {
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
 }
 
-.mobile-nav a {
+.mobile-nav a,
+.mobile-nav > button {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -366,11 +367,16 @@ table.data th {
   color: var(--muted);
   font-size: 0.65rem;
   font-weight: 700;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
   transition: background 0.2s ease, color 0.2s ease;
 }
 
 .mobile-nav a.active,
-.mobile-nav a:hover {
+.mobile-nav a:hover,
+.mobile-nav > button.active,
+.mobile-nav > button:hover {
   color: var(--brand-ink);
   background: linear-gradient(180deg, #d7ff5e, #c8f542);
 }

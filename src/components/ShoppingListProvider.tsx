@@ -18,6 +18,9 @@ import {
 type ShoppingListContextValue = {
   items: ShoppingListItem[];
   ready: boolean;
+  sheetOpen: boolean;
+  openSheet: () => void;
+  closeSheet: () => void;
   addItem: (input: {
     productId: number;
     productName: string;
@@ -39,6 +42,7 @@ const ShoppingListContext = createContext<ShoppingListContextValue | null>(
 export function ShoppingListProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ShoppingListItem[]>([]);
   const [ready, setReady] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   useEffect(() => {
     setItems(loadShoppingList());
@@ -49,6 +53,9 @@ export function ShoppingListProvider({ children }: { children: ReactNode }) {
     if (!ready) return;
     saveShoppingList(items);
   }, [items, ready]);
+
+  const openSheet = useCallback(() => setSheetOpen(true), []);
+  const closeSheet = useCallback(() => setSheetOpen(false), []);
 
   const addItem = useCallback(
     (input: {
@@ -126,6 +133,9 @@ export function ShoppingListProvider({ children }: { children: ReactNode }) {
     () => ({
       items,
       ready,
+      sheetOpen,
+      openSheet,
+      closeSheet,
       addItem,
       setChecked,
       setQuantity,
@@ -137,6 +147,9 @@ export function ShoppingListProvider({ children }: { children: ReactNode }) {
     [
       items,
       ready,
+      sheetOpen,
+      openSheet,
+      closeSheet,
       addItem,
       setChecked,
       setQuantity,

@@ -1,4 +1,4 @@
-const CACHE = "mercado-v2";
+const CACHE = "mercado-v3";
 const PRECACHE = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -22,13 +22,23 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // Network-first for app pages; cache-first for static assets
-  if (request.destination === "document" || request.headers.get("accept")?.includes("text/html")) {
+  const isDocument =
+    request.destination === "document" ||
+    request.headers.get("accept")?.includes("text/html");
+  // Always prefer network for app shell / Next chunks so UI fixes ship to phones.
+  const isAppCode =
+    url.pathname.startsWith("/_next/") ||
+    url.pathname.endsWith(".js") ||
+    url.pathname.endsWith(".css");
+
+  if (isDocument || isAppCode) {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(request, copy));
+          if (response.ok && isDocument) {
+            const copy = response.clone();
+            caches.open(CACHE).then((cache) => cache.put(request, copy));
+          }
           return response;
         })
         .catch(() => caches.match(request).then((r) => r || caches.match("/"))),

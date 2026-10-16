@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 import { ScrollFab } from "@/components/ScrollFab";
 import { ShoppingListNavLink } from "@/components/ShoppingListNavLink";
 import { ShoppingListProvider } from "@/components/ShoppingListProvider";
+import { ShoppingListSheet } from "@/components/ShoppingListSheet";
 
 const primaryLinks = [
   { href: "/", label: "Painel", icon: Home },
@@ -108,6 +109,7 @@ export function AppShell({
         <main>{children}</main>
 
         <ScrollFab />
+        <ShoppingListSheet />
 
         <nav className="mobile-nav" aria-label="Navegação principal">
           {primaryLinks.slice(0, 3).map(({ href, label, icon: Icon }) => (
