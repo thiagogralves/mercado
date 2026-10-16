@@ -27,6 +27,7 @@ export function ShoppingListAddForm() {
 
   const [catalog, setCatalog] = useState<CatalogProduct[]>([]);
   const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<CatalogProduct | null>(null);
   const [qty, setQty] = useState("1");
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
@@ -66,12 +67,10 @@ export function ShoppingListAddForm() {
   const exactMatch = useMemo(() => {
     const q = normalizeProductText(trimmed);
     if (!q) return null;
-    return (
-      catalog.find((p) => normalizeProductText(p.name) === q) ?? null
-    );
+    return catalog.find((p) => normalizeProductText(p.name) === q) ?? null;
   }, [catalog, trimmed]);
 
-  const showCustomOption = Boolean(trimmed) && !exactMatch;
+  const showCustomOption = Boolean(trimmed) && !exactMatch && !selected;
   const optionCount = results.length + (showCustomOption ? 1 : 0);
 
   useEffect(() => {
@@ -82,43 +81,63 @@ export function ShoppingListAddForm() {
     return Math.max(0.001, Number(String(qty).replace(",", ".")) || 1);
   }
 
-  function commitCatalog(product: CatalogProduct) {
-    addItem({
-      productId: product.id,
-      productName: product.name,
-      unit: product.unit || "un",
-      quantity: qtyNum(),
-    });
-    setQuery("");
-    setQty("1");
+  function pickSuggestion(product: CatalogProduct) {
+    setSelected(product);
+    setQuery(product.name);
     setOpen(false);
     inputRef.current?.focus();
   }
 
-  function commitCustom() {
-    if (!trimmed) return;
-    addItem({
-      productId: null,
-      productName: trimmed,
-      unit: "un",
-      quantity: qtyNum(),
-    });
-    setQuery("");
-    setQty("1");
+  function pickCustomLabel() {
+    setSelected(null);
+    setQuery(trimmed);
     setOpen(false);
     inputRef.current?.focus();
   }
 
-  function commitDefault() {
-    if (exactMatch) {
-      commitCatalog(exactMatch);
-      return;
+  function onQueryChange(value: string) {
+    setQuery(value);
+    setOpen(true);
+    if (
+      selected &&
+      normalizeProductText(value) !== normalizeProductText(selected.name)
+    ) {
+      setSelected(null);
     }
-    if (open && results[highlight]) {
-      commitCatalog(results[highlight]);
-      return;
+  }
+
+  function commit() {
+    const name = trimmed;
+    if (!name) return;
+
+    if (selected) {
+      addItem({
+        productId: selected.id,
+        productName: selected.name,
+        unit: selected.unit || "un",
+        quantity: qtyNum(),
+      });
+    } else if (exactMatch) {
+      addItem({
+        productId: exactMatch.id,
+        productName: exactMatch.name,
+        unit: exactMatch.unit || "un",
+        quantity: qtyNum(),
+      });
+    } else {
+      addItem({
+        productId: null,
+        productName: name,
+        unit: "un",
+        quantity: qtyNum(),
+      });
     }
-    if (trimmed) commitCustom();
+
+    setQuery("");
+    setSelected(null);
+    setQty("1");
+    setOpen(false);
+    inputRef.current?.focus();
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -145,19 +164,20 @@ export function ShoppingListAddForm() {
     if (e.key !== "Enter") return;
     e.preventDefault();
 
+    // Com sugestões abertas: só preenche o campo (não adiciona ainda).
     if (open && optionCount > 0) {
       if (highlight < results.length) {
         const item = results[highlight];
-        if (item) commitCatalog(item);
+        if (item) pickSuggestion(item);
         return;
       }
       if (showCustomOption) {
-        commitCustom();
+        pickCustomLabel();
         return;
       }
     }
 
-    commitDefault();
+    commit();
   }
 
   return (
@@ -179,11 +199,10 @@ export function ShoppingListAddForm() {
             aria-autocomplete="list"
             aria-controls={listId}
             aria-expanded={open}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setOpen(true);
+            onChange={(e) => onQueryChange(e.target.value)}
+            onFocus={() => {
+              if (!selected) setOpen(true);
             }}
-            onFocus={() => setOpen(true)}
             onKeyDown={onKeyDown}
           />
         </label>
@@ -220,13 +239,13 @@ export function ShoppingListAddForm() {
           type="button"
           className="btn btn-primary !py-2"
           disabled={!trimmed}
-          onClick={commitDefault}
+          onClick={commit}
         >
           Adicionar
         </button>
       </div>
 
-      {open && trimmed ? (
+      {open && trimmed && !selected ? (
         <ul
           id={listId}
           role="listbox"
@@ -242,7 +261,7 @@ export function ShoppingListAddForm() {
                     : "text-ink hover:bg-white/5"
                 }`}
                 onMouseEnter={() => setHighlight(index)}
-                onClick={() => commitCatalog(product)}
+                onClick={() => pickSuggestion(product)}
               >
                 <span className="font-semibold">{product.name}</span>
                 <span
@@ -266,11 +285,11 @@ export function ShoppingListAddForm() {
                     : "text-ink hover:bg-white/5"
                 }`}
                 onMouseEnter={() => setHighlight(results.length)}
-                onClick={commitCustom}
+                onClick={pickCustomLabel}
               >
                 <Plus size={14} />
                 <span>
-                  Adicionar{" "}
+                  Usar{" "}
                   <strong className="font-bold">&quot;{trimmed}&quot;</strong>
                   <span
                     className={`ml-1 text-xs ${
