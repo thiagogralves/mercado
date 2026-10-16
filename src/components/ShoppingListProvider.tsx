@@ -10,10 +10,19 @@ import {
   type ReactNode,
 } from "react";
 import {
+  catalogListItemId,
+  customListItemId,
   loadShoppingList,
   saveShoppingList,
   type ShoppingListItem,
 } from "@/lib/shopping-list";
+
+type AddItemInput = {
+  productId?: number | null;
+  productName: string;
+  unit?: string;
+  quantity?: number;
+};
 
 type ShoppingListContextValue = {
   items: ShoppingListItem[];
@@ -21,15 +30,10 @@ type ShoppingListContextValue = {
   sheetOpen: boolean;
   openSheet: () => void;
   closeSheet: () => void;
-  addItem: (input: {
-    productId: number;
-    productName: string;
-    unit: string;
-    quantity: number;
-  }) => void;
-  setChecked: (productId: number, checked: boolean) => void;
-  setQuantity: (productId: number, quantity: number) => void;
-  removeItem: (productId: number) => void;
+  addItem: (input: AddItemInput) => void;
+  setChecked: (id: string, checked: boolean) => void;
+  setQuantity: (id: string, quantity: number) => void;
+  removeItem: (id: string) => void;
   clearChecked: () => void;
   clearAll: () => void;
   pendingCount: number;
@@ -57,63 +61,68 @@ export function ShoppingListProvider({ children }: { children: ReactNode }) {
   const openSheet = useCallback(() => setSheetOpen(true), []);
   const closeSheet = useCallback(() => setSheetOpen(false), []);
 
-  const addItem = useCallback(
-    (input: {
-      productId: number;
-      productName: string;
-      unit: string;
-      quantity: number;
-    }) => {
-      const qty = Math.max(0.001, Number(input.quantity) || 1);
-      setItems((prev) => {
-        const existing = prev.find((p) => p.productId === input.productId);
-        if (existing) {
-          return prev.map((p) =>
-            p.productId === input.productId
-              ? {
-                  ...p,
-                  quantity: Number((p.quantity + qty).toFixed(3)),
-                  checked: false,
-                  productName: input.productName,
-                  unit: input.unit,
-                }
-              : p,
-          );
-        }
-        return [
-          ...prev,
-          {
-            productId: input.productId,
-            productName: input.productName,
-            unit: input.unit,
-            quantity: Number(qty.toFixed(3)),
-            checked: false,
-          },
-        ].sort((a, b) => a.productName.localeCompare(b.productName, "pt-BR"));
-      });
-    },
-    [],
-  );
+  const addItem = useCallback((input: AddItemInput) => {
+    const productName = input.productName.trim();
+    if (!productName) return;
 
-  const setChecked = useCallback((productId: number, checked: boolean) => {
+    const qty = Math.max(0.001, Number(input.quantity) || 1);
+    const productId =
+      typeof input.productId === "number" && Number.isFinite(input.productId)
+        ? input.productId
+        : null;
+    const unit = input.unit?.trim() || "un";
+    const id =
+      productId != null
+        ? catalogListItemId(productId)
+        : customListItemId(productName);
+
+    setItems((prev) => {
+      const existing = prev.find((p) => p.id === id);
+      if (existing) {
+        return prev.map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                quantity: Number((p.quantity + qty).toFixed(3)),
+                checked: false,
+                productName,
+                unit,
+                productId,
+              }
+            : p,
+        );
+      }
+      return [
+        ...prev,
+        {
+          id,
+          productId,
+          productName,
+          unit,
+          quantity: Number(qty.toFixed(3)),
+          checked: false,
+        },
+      ].sort((a, b) => a.productName.localeCompare(b.productName, "pt-BR"));
+    });
+  }, []);
+
+  const setChecked = useCallback((id: string, checked: boolean) => {
     setItems((prev) =>
-      prev.map((p) => (p.productId === productId ? { ...p, checked } : p)),
+      prev.map((p) => (p.id === id ? { ...p, checked } : p)),
     );
   }, []);
 
-  const setQuantity = useCallback((productId: number, quantity: number) => {
+  const setQuantity = useCallback((id: string, quantity: number) => {
     const qty = Math.max(0.001, Number(quantity) || 1);
     setItems((prev) =>
       prev.map((p) =>
-        p.productId === productId
-          ? { ...p, quantity: Number(qty.toFixed(3)) }
-          : p,
+        p.id === id ? { ...p, quantity: Number(qty.toFixed(3)) } : p,
       ),
     );
   }, []);
 
-  const removeItem = useCallback((productId: number) => {
-    setItems((prev) => prev.filter((p) => p.productId !== productId));
+  const removeItem = useCallback((id: string) => {
+    setItems((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
   const clearChecked = useCallback(() => {

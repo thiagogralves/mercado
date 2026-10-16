@@ -1,10 +1,15 @@
 "use client";
 
 import { Trash2 } from "lucide-react";
+import { ShoppingListAddForm } from "@/components/ShoppingListAddForm";
 import { useShoppingList } from "@/components/ShoppingListProvider";
 import { formatQty } from "@/lib/money";
 
-export function ShoppingListView() {
+export function ShoppingListView({
+  showAddForm = true,
+}: {
+  showAddForm?: boolean;
+}) {
   const { items, ready, setChecked, removeItem, clearChecked, clearAll } =
     useShoppingList();
 
@@ -19,6 +24,15 @@ export function ShoppingListView() {
 
   return (
     <div className="space-y-4">
+      {showAddForm ? (
+        <div className="panel space-y-3 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+            Adicionar item
+          </p>
+          <ShoppingListAddForm />
+        </div>
+      ) : null}
+
       <div className="panel flex flex-wrap items-center justify-between gap-3 p-4">
         <p className="text-sm text-muted">
           {items.length === 0
@@ -52,20 +66,19 @@ export function ShoppingListView() {
 
       {items.length === 0 ? (
         <div className="panel p-6 text-sm text-muted">
-          Lista vazia. No <strong className="text-ink">Painel</strong> ou em{" "}
-          <strong className="text-ink">Cotas</strong>, use o botão{" "}
-          <strong className="text-ink">+</strong> nos cards para adicionar o que
-          falta pegar no mercado.
+          Digite acima para buscar um alimento cadastrado ou adicionar um item
+          livre. Também dá para usar o <strong className="text-ink">+</strong>{" "}
+          nos cards de cota.
           <p className="mt-2">
-            Marcar itens aqui é só acompanhamento — não registra compra nem altera
-            a cota.
+            Marcar itens aqui é só acompanhamento — não registra compra nem
+            altera a cota.
           </p>
         </div>
       ) : (
         <ul className="stagger space-y-2">
           {items.map((item) => (
             <li
-              key={item.productId}
+              key={item.id}
               className={`panel flex items-center gap-3 px-4 py-3 ${
                 item.checked ? "opacity-60" : ""
               }`}
@@ -74,7 +87,7 @@ export function ShoppingListView() {
                 type="checkbox"
                 className="h-5 w-5 shrink-0 accent-[var(--brand)]"
                 checked={item.checked}
-                onChange={(e) => setChecked(item.productId, e.target.checked)}
+                onChange={(e) => setChecked(item.id, e.target.checked)}
                 aria-label={`Marcar ${item.productName}`}
               />
               <div className="min-w-0 flex-1">
@@ -87,13 +100,16 @@ export function ShoppingListView() {
                 </p>
                 <p className="text-sm text-muted">
                   {formatQty(item.quantity, item.unit)}
+                  {item.productId == null ? (
+                    <span className="ml-2 text-xs">· avulso</span>
+                  ) : null}
                 </p>
               </div>
               <button
                 type="button"
                 className="btn btn-danger !px-2.5 !py-2"
                 aria-label={`Remover ${item.productName}`}
-                onClick={() => removeItem(item.productId)}
+                onClick={() => removeItem(item.id)}
               >
                 <Trash2 size={16} />
               </button>

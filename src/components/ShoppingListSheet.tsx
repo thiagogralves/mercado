@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { ShoppingListAddForm } from "@/components/ShoppingListAddForm";
 import { useShoppingList } from "@/components/ShoppingListProvider";
 import { ShoppingListView } from "@/components/ShoppingListView";
 
@@ -62,8 +63,14 @@ export function ShoppingListSheet() {
             <X size={16} />
           </button>
         </div>
+        <div className="relative z-10 shrink-0 space-y-2 border-b border-line px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+            Adicionar item
+          </p>
+          <ShoppingListAddForm />
+        </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <ShoppingListView />
+          <ShoppingListView showAddForm={false} />
         </div>
       </div>
     </div>,

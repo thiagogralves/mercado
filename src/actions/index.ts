@@ -28,6 +28,16 @@ async function ready() {
   await ensureSchema();
 }
 
+export async function getShoppingListCatalog() {
+  await ready();
+  const rows = await listProducts();
+  return rows.map((p) => ({
+    id: p.id,
+    name: p.name,
+    unit: p.unit,
+  }));
+}
+
 function revalidateAll() {
   revalidatePath("/");
   revalidatePath("/alimentos");

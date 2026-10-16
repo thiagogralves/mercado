@@ -1,4 +1,4 @@
-const CACHE = "mercado-v3";
+const CACHE = "mercado-v4";
 const PRECACHE = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
